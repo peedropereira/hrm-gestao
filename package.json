@@ -12,7 +12,8 @@
     "vercel-build": "prisma generate && prisma migrate deploy && tsx prisma/seed.ts && next build",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "db:reset-user": "tsx prisma/reset-user.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

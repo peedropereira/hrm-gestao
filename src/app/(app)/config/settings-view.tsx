@@ -92,8 +92,8 @@ export function SettingsView({ login, theme, hasDemo, settings }: { login: strin
             <Field label="Senha atual" htmlFor="pw-cur">
               <input id="pw-cur" type="password" autoComplete="current-password" className={inputCls} value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} required />
             </Field>
-            <Field label="Nova senha" htmlFor="pw-new" hint="Pelo menos 10 caracteres. Uma frase curta é fácil de lembrar e difícil de adivinhar.">
-              <input id="pw-new" type="password" autoComplete="new-password" className={inputCls} value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} required minLength={10} />
+            <Field label="Nova senha" htmlFor="pw-new" hint="Pelo menos 8 caracteres. Uma frase curta é fácil de lembrar e difícil de adivinhar.">
+              <input id="pw-new" type="password" autoComplete="new-password" className={inputCls} value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} required minLength={8} />
             </Field>
             <Field label="Confirmar nova senha" htmlFor="pw-conf">
               <input id="pw-conf" type="password" autoComplete="new-password" className={inputCls} value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} required />

@@ -71,7 +71,7 @@ No projeto da Vercel: **Settings → Environment Variables**. Adicione uma por u
 | `AUTH_SECRET` | Um texto aleatório longo. Gere em https://generate-secret.vercel.app/32 e cole. |
 | `SEED_USER_LOGIN` | Seu usuário de acesso, ex.: `pedro` |
 | `SEED_USER_NAME` | Seu nome, ex.: `Pedro` |
-| `SEED_USER_PASSWORD` | Sua senha inicial (mínimo 10 caracteres). Você digita aqui, direto na Vercel. |
+| `SEED_USER_PASSWORD` | Sua senha inicial (mínimo 8 caracteres). Você digita aqui, direto na Vercel. |
 | `SEED_DEMO` | `true` para começar com dados de exemplo, `false` para começar vazio |
 
 O usuário é criado **uma única vez**, no primeiro deploy. Depois de entrar:

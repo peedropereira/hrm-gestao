@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Columns3, Grid2x2, List, Plus, Search } from "lucide-react";
@@ -22,6 +22,19 @@ const FILTERS = [
   ["concluidas", "Concluídas"],
 ] as const;
 
+/** Tela larga (>= 1536 px): mostra colunas Tipo e Prioridade na tabela. */
+function useWide() {
+  return useSyncExternalStore(
+    (cb) => {
+      const m = window.matchMedia("(min-width: 1536px)");
+      m.addEventListener("change", cb);
+      return () => m.removeEventListener("change", cb);
+    },
+    () => window.matchMedia("(min-width: 1536px)").matches,
+    () => false,
+  );
+}
+
 type Group = { key: string; title: string; items: ActionDTO[]; tone?: "red" };
 
 const EMPTY: Record<string, [string, string]> = {
@@ -36,6 +49,7 @@ const EMPTY: Record<string, [string, string]> = {
 export function ActionsView({ open, recentDone, filter, view, selected }: { open: ActionDTO[]; recentDone: ActionDTO[]; filter: string; view: string; selected?: string }) {
   const { today, applyOverlay, sectorById, openCapture, setSearchOpen } = useApp();
   const router = useRouter();
+  const wide = useWide();
   const path = usePathname();
   const sp = useSearchParams();
 
@@ -208,7 +222,7 @@ export function ActionsView({ open, recentDone, filter, view, selected }: { open
                 className="mx-7 my-3 flex h-10 w-[calc(100%-56px)] items-center gap-2.5 rounded-[10px] border border-dashed border-line-strong px-3 text-left text-[14px] text-fg-3 hover:border-ac hover:text-fg-2"
               >
                 <Plus className="size-4" />
-                <b className="font-semibold text-fg-2">Adicionar ação</b>· escreva em uma linha, ex.: decidir compra de chapa amanhã #suprimentos !
+                <b className="shrink-0 font-semibold text-fg-2">Adicionar ação</b><span className="truncate">· ex.: decidir compra de chapa amanhã #suprimentos !</span>
               </button>
               {visible.length === 0 ? (
                 <EmptyState title={emptyMsg[0]} className="mx-7">
@@ -216,36 +230,33 @@ export function ActionsView({ open, recentDone, filter, view, selected }: { open
                 </EmptyState>
               ) : (
                 <table className="w-full table-fixed border-collapse text-[14px]">
-                  <colgroup>
-                    <col className="w-[52px]" />
-                    <col />
-                    <col className="w-[132px]" />
-                    <col className="w-[108px]" />
-                    <col className="w-[92px]" />
-                    <col className="w-[132px]" />
-                    <col className="w-[116px]" />
-                  </colgroup>
                   <thead>
                     <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-fg-3">
-                      <th className="border-y border-line bg-surface-2 py-2 pl-5" />
+                      <th className="w-[52px] border-y border-line bg-surface-2 py-2 pl-5" />
                       <th className="border-y border-line bg-surface-2 px-2 py-2">Ação</th>
-                      <th className="border-y border-line bg-surface-2 px-2 py-2">Setor</th>
-                      <th className="border-y border-line bg-surface-2 px-2 py-2">Responsável</th>
-                      <th className="border-y border-line bg-surface-2 px-2 py-2">Tipo</th>
-                      <th className="border-y border-line bg-surface-2 px-2 py-2">Prazo</th>
-                      <th className="border-y border-line bg-surface-2 px-2 py-2">Prioridade</th>
+                      <th className="border-y border-line bg-surface-2 px-2 py-2 w-[120px]">Setor</th>
+                      <th className="border-y border-line bg-surface-2 px-2 py-2 w-[100px]">Responsável</th>
+                      {wide && <th className="w-[92px] border-y border-line bg-surface-2 px-2 py-2">Tipo</th>}
+                      <th className="border-y border-line bg-surface-2 px-2 py-2 w-[124px]">Prazo</th>
+                      {wide && <th className="w-[116px] border-y border-line bg-surface-2 px-2 py-2">Prioridade</th>}
                     </tr>
                   </thead>
                   <tbody>
                     {visible.map((g) => (
-                      <GroupRows key={g.key} g={g} selId={sel?.id} onSelect={(id) => setParam("sel", id)} />
+                      <GroupRows
+                        key={g.key}
+                        g={g}
+                        selId={sel?.id}
+                        wide={wide}
+                        onSelect={(id) => (window.innerWidth >= 1024 ? setParam("sel", id) : router.push(`/acoes/${id}`))}
+                      />
                     ))}
                   </tbody>
                 </table>
               )}
             </div>
             {sel && (
-              <aside className="w-[420px] shrink-0 overflow-y-auto border-l border-line bg-surface">
+              <aside className="hidden w-[380px] shrink-0 overflow-y-auto border-l border-line bg-surface lg:block">
                 <ActionDetail key={sel.id} action={sel} compact />
               </aside>
             )}
@@ -272,12 +283,12 @@ function QuadCell({ a }: { a: ActionDTO }) {
   );
 }
 
-function GroupRows({ g, selId, onSelect }: { g: Group; selId?: string; onSelect: (id: string) => void }) {
+function GroupRows({ g, selId, onSelect, wide }: { g: Group; selId?: string; onSelect: (id: string) => void; wide: boolean }) {
   const { today, sectorById, personById } = useApp();
   return (
     <>
       <tr>
-        <td colSpan={7} className={cn("h-[30px] bg-bg pl-7 text-[11px] font-bold uppercase tracking-[0.06em]", g.tone === "red" ? "text-red" : "text-fg-3")}>
+        <td colSpan={wide ? 7 : 5} className={cn("h-[30px] bg-bg pl-7 text-[11px] font-bold uppercase tracking-[0.06em]", g.tone === "red" ? "text-red" : "text-fg-3")}>
           {g.title} · {g.items.length}
         </td>
       </tr>
@@ -299,15 +310,19 @@ function GroupRows({ g, selId, onSelect }: { g: Group; selId?: string; onSelect:
           <td className="truncate">
             <PersonChip person={personById(a.assigneeId)} />
           </td>
-          <td>
-            <KindLabel kind={a.kind} />
-          </td>
+          {wide && (
+            <td>
+              <KindLabel kind={a.kind} />
+            </td>
+          )}
           <td>
             <DueBadge a={a} today={today} />
           </td>
-          <td>
-            <QuadCell a={a} />
-          </td>
+          {wide && (
+            <td>
+              <QuadCell a={a} />
+            </td>
+          )}
         </tr>
       ))}
     </>

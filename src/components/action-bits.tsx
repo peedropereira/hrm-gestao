@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { motion, useMotionValue, useTransform, animate } from "motion/react";
 import { ArrowLeft, ArrowRight, CalendarDays, Check, Clock, History, Sun, CalendarClock } from "lucide-react";
@@ -133,6 +133,7 @@ export function SwipeCard({ a, href }: { a: ActionDTO; href: string }) {
   const [snoozing, setSnoozing] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const x = useMotionValue(0);
+  const dragged = useRef(false);
   const leftOpacity = useTransform(x, [0, 40], [0, 1]);
   const rightOpacity = useTransform(x, [-40, 0], [1, 0]);
 
@@ -155,6 +156,8 @@ export function SwipeCard({ a, href }: { a: ActionDTO; href: string }) {
         dragConstraints={{ left: 0, right: 0 }}
         dragElastic={0.55}
         style={{ x, touchAction: "pan-y" }}
+        onPointerDown={() => (dragged.current = false)}
+        onDragStart={() => (dragged.current = true)}
         onDragEnd={(_, info) => {
           if (info.offset.x > 90) {
             setLeaving(true);
@@ -167,7 +170,15 @@ export function SwipeCard({ a, href }: { a: ActionDTO; href: string }) {
         className="relative flex gap-1 rounded-[14px] border border-line bg-surface py-1 pl-1 pr-3.5 shadow-card"
       >
         <CheckButton a={a} />
-        <Link href={href} className="min-w-0 flex-1 pb-2.5 pt-2" draggable={false}>
+        <Link
+          href={href}
+          className="min-w-0 flex-1 pb-2.5 pt-2"
+          draggable={false}
+          onClick={(e) => {
+            // depois de um deslize, o toque não abre a ação
+            if (dragged.current) e.preventDefault();
+          }}
+        >
           <div className={cn("text-[17px] font-medium leading-snug", a.status === "DONE" && "text-fg-3 line-through")}>{a.title}</div>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
             <DueBadge a={a} today={today} />

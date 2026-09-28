@@ -64,7 +64,7 @@ export async function logoutAction() {
 const pwSchema = z
   .object({
     current: z.string().min(1, "Informe a senha atual."),
-    next: z.string().min(10, "A nova senha precisa ter pelo menos 10 caracteres.").max(200),
+    next: z.string().min(8, "A nova senha precisa ter pelo menos 8 caracteres.").max(200),
     confirm: z.string(),
   })
   .refine((d) => d.next === d.confirm, { message: "A confirmação não é igual à nova senha.", path: ["confirm"] });

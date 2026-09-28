@@ -56,15 +56,15 @@ export function TodayView(p: Props) {
   return (
     <div className="mx-auto max-w-[1180px]">
       {/* Cabeçalho */}
-      <header className="flex items-start justify-between gap-3 px-5 pb-2.5 pt-3 md:px-7 md:pb-0 md:pt-6">
-        <div>
-          <p className="text-[15px] font-medium text-fg-3 md:hidden">{formatLong(today)}</p>
+      <header className="grid grid-cols-[1fr_auto] items-center gap-x-3 px-5 pb-2.5 pt-3 md:px-7 md:pb-0 md:pt-6">
+        <p className="text-[15px] font-medium text-fg-3 md:hidden">{formatLong(today).replace("-feira", "")}</p>
+        <div className="col-span-2 md:col-span-1 md:row-start-1">
           <h1 className="mt-0.5 text-[30px] font-bold leading-tight tracking-[-0.025em] md:text-[26px]">
             {greet}, {userName.split(" ")[0]}
           </h1>
           <p className="hidden text-[14px] text-fg-3 md:block">{formatLong(today).split(",")[0]}, {formatExtenso(today)}</p>
         </div>
-        <div className="flex gap-2 pt-1 md:hidden">
+        <div className="col-start-2 row-start-1 flex gap-2 md:hidden">
           <button type="button" onClick={() => setSearchOpen(true)} className="grid size-11 place-items-center rounded-[12px] border border-line bg-surface text-fg-2" aria-label="Buscar">
             <Search className="size-5" />
           </button>
@@ -78,13 +78,13 @@ export function TodayView(p: Props) {
             {userName.slice(0, 2).toUpperCase()}
           </Link>
         </div>
-        <Link href="/revisao" className="hidden h-9 items-center gap-2 rounded-[9px] border border-line-strong bg-surface px-3 text-[13px] font-semibold hover:bg-surface-2 md:inline-flex">
+        <Link href="/revisao" className="col-start-2 row-start-1 hidden h-9 items-center gap-2 rounded-[9px] border border-line-strong bg-surface px-3 text-[13px] font-semibold hover:bg-surface-2 md:inline-flex">
           <CalendarCheck className="size-[15px]" /> Revisão de sexta
         </Link>
       </header>
 
       {/* Números-chave */}
-      <div className="grid grid-cols-3 gap-2 px-4 pt-1.5 md:grid-cols-4 md:gap-3 md:px-7 md:pt-5">
+      <div className="grid grid-cols-3 gap-2 px-4 pt-1.5 md:grid-cols-2 md:gap-3 lg:grid-cols-4 md:px-7 md:pt-5">
         <Link href="/acoes?f=atrasadas" className="flex min-h-[112px] flex-col gap-0.5 rounded-[14px] border border-line bg-surface p-3 shadow-card md:grid md:min-h-0 md:grid-cols-[1fr_auto] md:items-end md:gap-x-3 md:rounded-[12px] md:px-4 md:py-3.5">
           <span className="order-2 text-[15px] font-medium text-fg-2 md:order-none md:col-span-2 md:text-[13px]">atrasadas</span>
           <span className="order-1 text-[38px] font-bold leading-none tracking-[-0.035em] text-red md:order-none md:text-[36px]">{overdue.length}</span>
@@ -113,8 +113,8 @@ export function TodayView(p: Props) {
         </Link>
       </div>
 
-      <div className="md:grid md:grid-cols-[minmax(0,1fr)_380px] md:gap-4 md:px-7 md:pt-4">
-        <div className="md:grid md:content-start md:gap-4">
+      <div className="md:grid md:gap-4 md:px-7 md:pt-4 lg:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="min-w-0 md:grid md:content-start md:gap-4 [&>*]:min-w-0">
           {/* Prioridades */}
           <section className="px-4 pt-6 md:p-0">
             <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
@@ -185,7 +185,7 @@ export function TodayView(p: Props) {
           )}
         </div>
 
-        <div className="md:grid md:content-start md:gap-4">
+        <div className="min-w-0 md:grid md:content-start md:gap-4 [&>*]:min-w-0">
           {/* Agenda */}
           <section className="px-4 pt-6 md:p-0">
             <div className="md:hidden">

@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { completeAction, deleteAction, reopenAction, restoreAction, snoozeAction } from "@/app/actions/actions";
+import { completeAction, deleteAction, reopenAction, restoreAction, setDueDate, snoozeAction } from "@/app/actions/actions";
 import { formatShort } from "@/lib/dates";
 import type { ActionDTO, AppContextData, PersonDTO, SectorDTO } from "@/lib/types";
 
@@ -82,14 +82,13 @@ export function AppProvider({ data, children }: { data: AppContextData; children
     (a: ActionDTO) => {
       vibrate();
       const prev = a.status;
-      void run(a.id, { status: "DONE" }, () => completeAction(a.id)).then((ok) => {
-        if (!ok) return;
-        toast.success("Ação concluída", {
-          action: {
-            label: "Desfazer",
-            onClick: () => void run(a.id, { status: prev }, () => reopenAction(a.id, prev)),
-          },
-        });
+      // O aviso aparece na hora; "Desfazer" espera o salvamento terminar antes de reverter.
+      const saved = run(a.id, { status: "DONE" }, () => completeAction(a.id));
+      toast.success("Ação concluída", {
+        action: {
+          label: "Desfazer",
+          onClick: () => void saved.then((ok) => ok && run(a.id, { status: prev }, () => reopenAction(a.id, prev))),
+        },
       });
     },
     [run],
@@ -98,16 +97,12 @@ export function AppProvider({ data, children }: { data: AppContextData; children
   const snooze = useCallback(
     (a: ActionDTO, dueDate: string) => {
       const prev = a.dueDate;
-      void run(a.id, { dueDate }, () => snoozeAction(a.id, dueDate)).then((ok) => {
-        if (!ok) return;
-        toast.success(`Adiada para ${formatShort(dueDate)}`, {
-          action: {
-            label: "Desfazer",
-            onClick: () => {
-              if (prev) void run(a.id, { dueDate: prev }, () => snoozeAction(a.id, prev));
-            },
-          },
-        });
+      const saved = run(a.id, { dueDate }, () => snoozeAction(a.id, dueDate));
+      toast.success(`Adiada para ${formatShort(dueDate)}`, {
+        action: {
+          label: "Desfazer",
+          onClick: () => void saved.then((ok) => ok && run(a.id, { dueDate: prev }, () => setDueDate(a.id, prev))),
+        },
       });
     },
     [run],
@@ -115,11 +110,9 @@ export function AppProvider({ data, children }: { data: AppContextData; children
 
   const remove = useCallback(
     (a: ActionDTO) => {
-      void run(a.id, { hidden: true }, () => deleteAction(a.id)).then((ok) => {
-        if (!ok) return;
-        toast.success("Ação excluída", {
-          action: { label: "Desfazer", onClick: () => void run(a.id, {}, () => restoreAction(a.id)) },
-        });
+      const saved = run(a.id, { hidden: true }, () => deleteAction(a.id));
+      toast.success("Ação excluída", {
+        action: { label: "Desfazer", onClick: () => void saved.then((ok) => ok && run(a.id, {}, () => restoreAction(a.id))) },
       });
     },
     [run],

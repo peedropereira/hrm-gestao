@@ -44,7 +44,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           position="bottom-center"
           offset={{ bottom: 32 }}
           mobileOffset={{ bottom: "calc(104px + env(safe-area-inset-bottom))" }}
-          duration={5000}
+          duration={8000}
           toastOptions={{
             unstyled: true,
             classNames: {

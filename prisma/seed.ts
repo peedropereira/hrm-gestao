@@ -22,7 +22,7 @@ async function main() {
     console.log("Seed: SEED_USER_LOGIN/SEED_USER_PASSWORD ausentes. Nada a fazer.");
     return;
   }
-  if (password.length < 10) throw new Error("SEED_USER_PASSWORD precisa ter pelo menos 10 caracteres.");
+  if (password.length < 8) throw new Error("SEED_USER_PASSWORD precisa ter pelo menos 8 caracteres.");
 
   const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) });
   try {

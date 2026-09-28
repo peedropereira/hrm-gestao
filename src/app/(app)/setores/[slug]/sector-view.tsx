@@ -247,7 +247,7 @@ export function SectorView(p: Props) {
           <div>
             <h1 className="text-[30px] font-bold leading-tight tracking-[-0.025em] md:text-[26px]">{s.name}</h1>
             {p.health && (
-              <HealthLabel status={p.health.status} className="mt-0.5">
+              <HealthLabel status={p.health.status} className="mt-1 items-start whitespace-normal leading-snug [&>span]:mt-[5px]">
                 {p.health.status === "green" ? "Em dia" : `${p.health.status === "red" ? "Crítico" : "Atenção"} · ${p.health.reason}`}
               </HealthLabel>
             )}
@@ -261,8 +261,8 @@ export function SectorView(p: Props) {
               <div className="flex items-center gap-3">
                 <span className="grid size-11 place-items-center rounded-full bg-surface-2 text-[15px] font-bold text-fg-2 md:size-9 md:text-[13px]">{initials(leader.name)}</span>
                 <div>
-                  <b className="block text-[17px] md:text-[14px]">{leader.name}</b>
-                  <span className="text-[14px] text-fg-3 md:text-[12px]">
+                  <b className="block whitespace-nowrap text-[17px] md:text-[14px]">{leader.name}</b>
+                  <span className="text-[14px] text-fg-3 md:whitespace-nowrap md:text-[12px]">
                     {leader.role ?? "Líder"}
                     {leader.phone ? ` · ${leader.phone}` : ""}
                   </span>
@@ -286,14 +286,6 @@ export function SectorView(p: Props) {
               <UserPlus /> Cadastrar líder
             </Button>
           )}
-          <div className="hidden gap-2 md:flex">
-            <Button size="sm" variant="secondary" onClick={() => setEditSector(true)}>
-              <Pencil /> Editar
-            </Button>
-            <Button size="sm" onClick={newAction}>
-              <Plus /> Nova ação
-            </Button>
-          </div>
         </div>
       </header>
 
@@ -311,12 +303,20 @@ export function SectorView(p: Props) {
             {n !== null && <span className="font-mono text-[12px] font-medium">{n}</span>}
           </button>
         ))}
+        <span className="ml-auto hidden items-center gap-2 pl-4 md:flex">
+          <Button size="sm" variant="secondary" onClick={() => setEditSector(true)}>
+            <Pencil /> Editar
+          </Button>
+          <Button size="sm" onClick={newAction}>
+            <Plus /> Nova ação
+          </Button>
+        </span>
       </nav>
 
       <div className="px-4 pt-5 md:px-7">
         {p.tab === "resumo" && (
-          <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_360px] md:gap-4">
-            <div className="grid content-start gap-5 md:gap-4">
+          <div className="grid gap-5 md:gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="grid min-w-0 content-start gap-5 md:gap-4 [&>*]:min-w-0">
               <Card>
                 <PanelHead title="Metas" count={p.kpis.length}>
                   <button type="button" onClick={() => setTab("metas")} className="text-[14px] font-semibold text-ac-text md:text-[13px]">
@@ -332,7 +332,7 @@ export function SectorView(p: Props) {
                 {actionRows(actions.slice(0, 6))}
               </Card>
             </div>
-            <div className="grid content-start gap-5 md:gap-4">
+            <div className="grid min-w-0 content-start gap-5 md:gap-4 [&>*]:min-w-0">
               <Card>
                 <PanelHead title="Necessidades pendentes" count={pendingNeeds.length}>
                   {addBtn("Nova", () => setForm({ kind: "need" }))}
