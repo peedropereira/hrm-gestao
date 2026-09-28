@@ -17,7 +17,7 @@ export default auth((req) => {
       return NextResponse.json({ error: "Faça login para continuar." }, { status: 401 });
     }
     const url = new URL("/login", req.nextUrl.origin);
-    if (pathname !== "/") url.searchParams.set("voltar", pathname);
+    if (pathname !== "/") url.searchParams.set("voltar", pathname + req.nextUrl.search);
     return NextResponse.redirect(url);
   }
   return NextResponse.next();

@@ -43,8 +43,8 @@ export function Sidebar({ health }: { health: Record<string, Health> }) {
       <Link href="/hoje" className="flex items-center gap-2.5 px-2 pb-3.5">
         <FlangeMark size={30} />
         <span>
-          <b className="block text-[15px] leading-tight">HRM Gestão</b>
-          <small className="block text-[12px] text-fg-3">Caldeiraria Industrial</small>
+          <b className="block text-[15px] leading-tight">Pedro Souza</b>
+          <small className="block text-[12px] text-fg-3">Gestão pessoal</small>
         </span>
       </Link>
       <button

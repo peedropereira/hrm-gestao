@@ -27,6 +27,19 @@ async function ownPending(ownerId: string, itemId: string) {
   return item;
 }
 
+/** Leva as fotos e documentos do item da caixa para o registro criado na triagem. */
+async function moveInboxFiles(itemId: string, to: { kind: "action" | "demand" | "need" | "note"; id: string }) {
+  const count = await db.attachment.count({ where: { inboxItemId: itemId } });
+  if (!count) return;
+  if (to.kind === "action") {
+    const up = await db.actionUpdate.create({ data: { actionId: to.id, kind: "EVIDENCE", text: "Anexos da captura rápida" } });
+    await db.attachment.updateMany({ where: { inboxItemId: itemId }, data: { inboxItemId: null, updateId: up.id } });
+    return;
+  }
+  const field = to.kind === "demand" ? "demandId" : to.kind === "need" ? "needId" : "noteId";
+  await db.attachment.updateMany({ where: { inboxItemId: itemId }, data: { inboxItemId: null, [field]: to.id } });
+}
+
 /** Um toque: interpreta o texto e cria a ação. */
 export async function triageToAction(itemId: string): Promise<Result<{ id: string }>> {
   try {
@@ -52,6 +65,7 @@ export async function triageToAction(itemId: string): Promise<Result<{ id: strin
         lastFollowUpAt: r.assigneeId ? new Date() : null,
       },
     });
+    await moveInboxFiles(item.id, { kind: "action", id: a.id });
     await db.inboxItem.update({ where: { id: item.id }, data: { status: "TRIAGED", convertedTo: "ACTION", convertedId: a.id, triagedAt: new Date() } });
     await logActivity({ ownerId: user.id, sectorId: a.sectorId, entityType: "action", entityId: a.id, verb: "created", summary: `Ação criada da caixa de entrada: ${a.title}` });
     refreshAll();
@@ -68,6 +82,7 @@ export async function triageToDemand(itemId: string, sectorId: string): Promise<
     const sec = await db.sector.findFirst({ where: { id: id.parse(sectorId), ownerId: user.id } });
     if (!sec) throw new Error("Escolha um setor.");
     const d = await db.demand.create({ data: { ownerId: user.id, sectorId: sec.id, title: item.text.slice(0, 300), source: "Captura rápida" } });
+    await moveInboxFiles(item.id, { kind: "demand", id: d.id });
     await db.inboxItem.update({ where: { id: item.id }, data: { status: "TRIAGED", convertedTo: "DEMAND", convertedId: d.id, triagedAt: new Date() } });
     await logActivity({ ownerId: user.id, sectorId: sec.id, entityType: "demand", entityId: d.id, verb: "created", summary: `Demanda registrada: ${d.title}` });
     refreshAll();
@@ -85,6 +100,7 @@ export async function triageToNeed(itemId: string, sectorId: string, category: s
     if (!sec) throw new Error("Escolha um setor.");
     const cat = z.enum(["PEOPLE", "EQUIPMENT", "INVESTMENT", "TRAINING", "PROCESS"]).parse(category);
     const n = await db.need.create({ data: { ownerId: user.id, sectorId: sec.id, title: item.text.slice(0, 300), category: cat } });
+    await moveInboxFiles(item.id, { kind: "need", id: n.id });
     await db.inboxItem.update({ where: { id: item.id }, data: { status: "TRIAGED", convertedTo: "NEED", convertedId: n.id, triagedAt: new Date() } });
     await logActivity({ ownerId: user.id, sectorId: sec.id, entityType: "need", entityId: n.id, verb: "created", summary: `Necessidade levantada: ${n.title}` });
     refreshAll();
@@ -104,6 +120,7 @@ export async function triageToNote(itemId: string, sectorId: string | null): Pro
       sid = sec?.id ?? null;
     }
     const n = await db.note.create({ data: { ownerId: user.id, sectorId: sid, content: item.text } });
+    await moveInboxFiles(item.id, { kind: "note", id: n.id });
     await db.inboxItem.update({ where: { id: item.id }, data: { status: "TRIAGED", convertedTo: "NOTE", convertedId: n.id, triagedAt: new Date() } });
     refreshAll();
     return { ok: true };
@@ -135,6 +152,12 @@ export async function undoTriage(itemId: string): Promise<Result> {
       if (item.convertedTo === "DEMAND") await db.demand.updateMany({ where: { id: item.convertedId, ownerId: user.id }, data: { deletedAt: now } });
       if (item.convertedTo === "NEED") await db.need.updateMany({ where: { id: item.convertedId, ownerId: user.id }, data: { deletedAt: now } });
       if (item.convertedTo === "NOTE") await db.note.updateMany({ where: { id: item.convertedId, ownerId: user.id }, data: { deletedAt: now } });
+      // os anexos voltam para o item da caixa
+      const back = { inboxItemId: item.id, updateId: null, demandId: null, needId: null, noteId: null };
+      if (item.convertedTo === "ACTION") await db.attachment.updateMany({ where: { ownerId: user.id, update: { actionId: item.convertedId } }, data: back });
+      if (item.convertedTo === "DEMAND") await db.attachment.updateMany({ where: { ownerId: user.id, demandId: item.convertedId }, data: back });
+      if (item.convertedTo === "NEED") await db.attachment.updateMany({ where: { ownerId: user.id, needId: item.convertedId }, data: back });
+      if (item.convertedTo === "NOTE") await db.attachment.updateMany({ where: { ownerId: user.id, noteId: item.convertedId }, data: back });
     }
     await db.inboxItem.update({ where: { id: item.id }, data: { status: "PENDING", convertedTo: null, convertedId: null, triagedAt: null } });
     refreshAll();

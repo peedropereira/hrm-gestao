@@ -7,10 +7,10 @@ const geist = Geist({ variable: "--font-geist", subsets: ["latin"], display: "sw
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"], display: "swap" });
 
 export const metadata: Metadata = {
-  title: { default: "HRM Gestão", template: "%s · HRM Gestão" },
-  description: "Gestão pessoal do Gerente Geral da HRM Caldeiraria Industrial.",
-  applicationName: "HRM Gestão",
-  appleWebApp: { capable: true, title: "HRM Gestão", statusBarStyle: "default" },
+  title: { default: "Pedro Souza · Gestão Pessoal", template: "%s · Pedro Souza" },
+  description: "Sistema de gestão pessoal de Pedro Souza: agenda, ações, setores e metas.",
+  applicationName: "Gestão PS",
+  appleWebApp: { capable: true, title: "Gestão PS", statusBarStyle: "default" },
   formatDetection: { telephone: false },
   robots: { index: false, follow: false },
   icons: {

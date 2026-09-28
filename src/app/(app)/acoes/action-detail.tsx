@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { BellRing, Camera, Check, Clock, History, Loader2, MessageCircle, Paperclip, Plus, RotateCcw, Trash2, X } from "lucide-react";
+import { BellRing, Camera, Check, Clock, History, Loader2, MessageCircle, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useApp } from "@/components/app-provider";
 import { FollowUpLine, SnoozeSheet } from "@/components/action-bits";
@@ -13,24 +13,10 @@ import { formatDateTimeShort } from "@/lib/dates";
 import { KIND_LABEL, ORIGIN_LABEL, STATUS_LABEL } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import type { ActionDTO } from "@/lib/types";
-import type { ActionExtra } from "@/lib/types";
-
-/** Reduz a foto no aparelho antes de enviar (lado maior 1600 px, JPEG 80%). */
-async function compressImage(file: File): Promise<File> {
-  if (!file.type.startsWith("image/") || file.type === "image/heic") return file;
-  try {
-    const bmp = await createImageBitmap(file);
-    const scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(bmp.width * scale);
-    canvas.height = Math.round(bmp.height * scale);
-    canvas.getContext("2d")!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
-    const blob: Blob | null = await new Promise((r) => canvas.toBlob(r, "image/jpeg", 0.8));
-    return blob ? new File([blob], "foto.jpg", { type: "image/jpeg" }) : file;
-  } catch {
-    return file;
-  }
-}
+import type { ActionExtra, AttachmentDTO } from "@/lib/types";
+import { AttachButtons, AttachmentList, PendingFiles } from "@/components/attachments";
+import { uploadFiles } from "@/lib/upload-client";
+import type { UploadedFile } from "@/lib/upload-rules";
 
 const field = "h-11 w-full rounded-[10px] border border-line bg-bg px-3 text-[16px] md:h-9 md:text-[14px] outline-none focus:border-ac";
 const label = "text-[14px] text-fg-3 md:text-[13px]";
@@ -46,7 +32,7 @@ export function ActionDetail({ action: a, compact, initialExtra }: { action: Act
   const [newSub, setNewSub] = useState("");
   const [note, setNote] = useState("");
   const [files, setFiles] = useState<File[]>([]);
-  const fileInput = useRef<HTMLInputElement>(null);
+  const [progress, setProgress] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const r = await fetch(`/api/acoes/${a.id}`);
@@ -76,18 +62,14 @@ export function ActionDetail({ action: a, compact, initialExtra }: { action: Act
 
   const sendUpdate = (kind: "COMMENT" | "FOLLOW_UP" | "EVIDENCE") =>
     start(async () => {
-      const uploaded = [];
-      for (const f of files) {
-        const body = new FormData();
-        body.append("file", await compressImage(f));
-        const r = await fetch("/api/upload", { method: "POST", body });
-        const j = await r.json().catch(() => ({}));
-        if (!r.ok) {
-          toast.error(j.error ?? "Não foi possível enviar a foto.");
-          return;
-        }
-        uploaded.push(j);
+      let uploaded: UploadedFile[] = [];
+      try {
+        uploaded = await uploadFiles(files, (i, total, pct) => setProgress(total > 1 ? `Enviando ${i} de ${total} · ${pct}%` : `Enviando · ${pct}%`));
+      } catch (e) {
+        setProgress(null);
+        return void toast.error(e instanceof Error ? e.message : "Não foi possível enviar o arquivo.");
       }
+      setProgress(null);
       const r = await addActionUpdate(a.id, { kind: files.length && kind === "COMMENT" ? "EVIDENCE" : kind, text: note || null, attachments: uploaded });
       if (!r.ok) return void toast.error(r.error);
       toast.success(kind === "FOLLOW_UP" ? "Cobrança registrada" : "Registrado");
@@ -97,7 +79,8 @@ export function ActionDetail({ action: a, compact, initialExtra }: { action: Act
     });
 
   const done = a.status === "DONE";
-  const photos = extra?.updates.flatMap((u) => u.attachments.filter((x) => x.mimeType.startsWith("image/")).map((x) => ({ ...x, at: u.createdAt }))) ?? [];
+  const attachments: AttachmentDTO[] =
+    extra?.updates.flatMap((u) => u.attachments.map((x) => ({ ...x, createdAt: u.createdAt }))) ?? [];
 
   return (
     <div className={cn("grid gap-5", compact ? "p-5" : "px-4 pb-8 md:px-0")}>
@@ -331,48 +314,29 @@ export function ActionDetail({ action: a, compact, initialExtra }: { action: Act
       </section>
 
       <section>
-        <h3 className="mb-2 text-[12px] font-bold uppercase tracking-[0.07em] text-fg-3">Evidências e comentários</h3>
-        {photos.length > 0 && (
-          <div className="mb-3 flex flex-wrap gap-2">
-            {photos.map((p) => (
-              <a key={p.id} href={p.url} target="_blank" rel="noreferrer" className="relative block size-[88px] overflow-hidden rounded-[10px] border border-line bg-surface-2">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={p.url} alt={`Evidência de ${formatDateTimeShort(new Date(p.at))}`} loading="lazy" className="size-full object-cover" />
-              </a>
-            ))}
-          </div>
-        )}
-        <div className="grid gap-2 rounded-[12px] border border-line bg-bg p-2.5">
+        <h3 className="mb-2 text-[12px] font-bold uppercase tracking-[0.07em] text-fg-3">Fotos, documentos e comentários</h3>
+        <div className="mb-3">
+          <AttachmentList items={attachments} onRemoved={() => void load()} />
+        </div>
+        <div className="grid gap-2.5 rounded-[12px] border border-line bg-bg p-2.5">
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={2}
-            placeholder="Comentário, combinado ou evidência…"
+            placeholder="Comentário, combinado ou legenda da foto…"
             aria-label="Comentário"
             className="w-full resize-none bg-transparent p-1 text-[16px] outline-none md:text-[14px]"
           />
-          {files.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {files.map((f, i) => (
-                <span key={i} className="inline-flex items-center gap-1 rounded-[8px] bg-surface-2 px-2 py-1 text-[13px]">
-                  <Paperclip className="size-3.5" />
-                  {f.name.slice(0, 24)}
-                  <button type="button" aria-label="Remover anexo" onClick={() => setFiles(files.filter((_, j) => j !== i))}>
-                    <X className="size-3.5" />
-                  </button>
-                </span>
-              ))}
-            </div>
+          <PendingFiles files={files} onRemove={(i) => setFiles(files.filter((_, j) => j !== i))} />
+          {progress && (
+            <p className="flex items-center gap-2 px-1 text-[14px] font-medium text-ac-text" role="status">
+              <Loader2 className="size-4 animate-spin" /> {progress}
+            </p>
           )}
-          <div className="flex gap-2">
-            <input ref={fileInput} type="file" accept="image/*,application/pdf" capture="environment" multiple hidden onChange={(e) => setFiles([...files, ...Array.from(e.target.files ?? [])].slice(0, 6))} />
-            <Button variant="secondary" size={compact ? "sm" : "md"} onClick={() => fileInput.current?.click()}>
-              <Camera /> Foto
-            </Button>
-            <Button size={compact ? "sm" : "md"} className="ml-auto" disabled={pending || (!note.trim() && !files.length)} onClick={() => sendUpdate("COMMENT")}>
-              {pending ? <Loader2 className="animate-spin" /> : <MessageCircle />} Registrar
-            </Button>
-          </div>
+          <AttachButtons size={compact ? "sm" : "md"} disabled={pending} onFiles={(f) => setFiles([...files, ...f].slice(0, 10))} />
+          <Button size={compact ? "sm" : "md"} block disabled={pending || (!note.trim() && !files.length)} onClick={() => sendUpdate("COMMENT")}>
+            {pending ? <Loader2 className="animate-spin" /> : <MessageCircle />} {files.length ? `Registrar com ${files.length} ${files.length === 1 ? "anexo" : "anexos"}` : "Registrar comentário"}
+          </Button>
         </div>
       </section>
 

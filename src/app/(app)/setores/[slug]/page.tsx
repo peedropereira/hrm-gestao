@@ -20,7 +20,8 @@ export default async function SectorPage({ params, searchParams }: PageProps<"/s
   if (!sector) notFound();
   const ids = [sector.id, ...sectors.filter((s) => s.parentId === sector.id).map((s) => s.id)];
 
-  const [open, health, kpis, needs, demands, notes, activity] = await Promise.all([
+  const inSector = { sectorId: { in: ids }, deletedAt: null };
+  const [open, health, kpis, needs, demands, notes, activity, files] = await Promise.all([
     getOpenActions(user.id),
     getSectorHealth(user.id, user.id),
     getKpiSnapshots(user.id),
@@ -28,7 +29,48 @@ export default async function SectorPage({ params, searchParams }: PageProps<"/s
     db.demand.findMany({ where: { ownerId: user.id, deletedAt: null, sectorId: { in: ids } }, orderBy: [{ status: "asc" }, { dueDate: { sort: "asc", nulls: "last" } }] }),
     db.note.findMany({ where: { ownerId: user.id, deletedAt: null, sectorId: { in: ids } }, orderBy: { createdAt: "desc" }, take: 100 }),
     db.activityLog.findMany({ where: { ownerId: user.id, sectorId: { in: ids } }, orderBy: { createdAt: "desc" }, take: 12 }),
+    db.attachment.findMany({
+      where: {
+        ownerId: user.id,
+        OR: [
+          { sectorId: { in: ids } },
+          { demand: inSector },
+          { need: inSector },
+          { note: inSector },
+          { update: { action: inSector } },
+        ],
+      },
+      include: {
+        demand: { select: { title: true } },
+        need: { select: { title: true } },
+        note: { select: { content: true } },
+        update: { select: { action: { select: { title: true } } } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 300,
+    }),
   ]);
+  const short = (s: string) => (s.length > 48 ? `${s.slice(0, 46)}…` : s);
+  const attachments = files.map((f) => ({
+    id: f.id,
+    url: f.url,
+    name: f.name,
+    mimeType: f.mimeType,
+    size: f.size,
+    createdAt: f.createdAt.toISOString(),
+    demandId: f.demandId,
+    needId: f.needId,
+    noteId: f.noteId,
+    source: f.demand
+      ? `Demanda: ${short(f.demand.title)}`
+      : f.need
+        ? `Necessidade: ${short(f.need.title)}`
+        : f.note
+          ? `Nota: ${short(f.note.content)}`
+          : f.update
+            ? `Ação: ${short(f.update.action.title)}`
+            : "Setor",
+  }));
 
   const tab = typeof sp.aba === "string" ? sp.aba : "resumo";
   return (
@@ -62,6 +104,7 @@ export default async function SectorPage({ params, searchParams }: PageProps<"/s
         status: d.status,
       }))}
       notes={notes.map((n) => ({ id: n.id, content: n.content, createdAt: formatDateTimeShort(n.createdAt) }))}
+      attachments={attachments}
       timeline={activity.map((a) => ({ id: a.id, summary: a.summary, at: formatDateTimeShort(a.createdAt) }))}
     />
   );

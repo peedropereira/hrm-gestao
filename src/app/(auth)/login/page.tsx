@@ -20,8 +20,8 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         <div className="flex items-center gap-3">
           <FlangeMark size={40} bg="#3dbacb" fg="#03262b" />
           <div>
-            <b className="block text-[17px]">HRM Gestão</b>
-            <span className="text-[14px] text-[#8c96a0]">Caldeiraria Industrial · Arujá/SP</span>
+            <b className="block text-[17px]">Pedro Souza</b>
+            <span className="text-[14px] text-[#8c96a0]">Gestão pessoal</span>
           </div>
         </div>
         <div className="max-w-[440px]">
@@ -41,8 +41,8 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           <div className="mb-10 flex items-center gap-3 md:hidden">
             <FlangeMark size={44} />
             <div>
-              <b className="block text-[18px]">HRM Gestão</b>
-              <span className="text-[15px] text-fg-3">Caldeiraria Industrial</span>
+              <b className="block text-[18px]">Pedro Souza</b>
+              <span className="text-[15px] text-fg-3">Gestão pessoal</span>
             </div>
           </div>
           <h2 className="text-[30px] font-bold tracking-[-0.025em]">Entrar</h2>

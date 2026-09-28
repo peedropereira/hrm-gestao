@@ -113,7 +113,7 @@ const demandInput = z.object({
   status: z.enum(["OPEN", "IN_PROGRESS", "DONE", "CANCELED"]).default("OPEN"),
 });
 
-export async function saveDemand(demandId: string | null, raw: z.input<typeof demandInput>): Promise<Result> {
+export async function saveDemand(demandId: string | null, raw: z.input<typeof demandInput>): Promise<Result<{ id: string }>> {
   try {
     const user = await actionUser();
     const d = demandInput.parse(raw);
@@ -123,19 +123,22 @@ export async function saveDemand(demandId: string | null, raw: z.input<typeof de
       receivedAt: isoToDateOnly(d.receivedAt ?? null) ?? undefined,
       dueDate: isoToDateOnly(d.dueDate ?? null),
     };
+    let savedId: string;
     if (demandId) {
       const cur = await db.demand.findFirst({ where: { id: demandId, ownerId: user.id } });
       if (!cur) throw new Error("Demanda não encontrada.");
+      savedId = cur.id;
       await db.demand.update({ where: { id: cur.id }, data });
       if (cur.status !== d.status) {
         await logActivity({ ownerId: user.id, sectorId: d.sectorId, entityType: "demand", entityId: cur.id, verb: "status", summary: `Demanda “${d.title}” mudou de status` });
       }
     } else {
       const n = await db.demand.create({ data: { ...data, ownerId: user.id } });
+      savedId = n.id;
       await logActivity({ ownerId: user.id, sectorId: d.sectorId, entityType: "demand", entityId: n.id, verb: "created", summary: `Demanda registrada: ${n.title}` });
     }
     refreshAll();
-    return { ok: true };
+    return { ok: true, data: { id: savedId } };
   } catch (e) {
     return fail(e);
   }
@@ -169,15 +172,17 @@ const needInput = z.object({
 
 const NEED_WORD: Record<string, string> = { RAISED: "Levantada", ANALYSIS: "Em análise", APPROVED: "Aprovada", FULFILLED: "Atendida", REJECTED: "Recusada" };
 
-export async function saveNeed(needId: string | null, raw: z.input<typeof needInput>): Promise<Result> {
+export async function saveNeed(needId: string | null, raw: z.input<typeof needInput>): Promise<Result<{ id: string }>> {
   try {
     const user = await actionUser();
     const d = needInput.parse(raw);
     await ownSector(user.id, d.sectorId);
     const decided = ["APPROVED", "REJECTED", "FULFILLED"].includes(d.status);
+    let savedId: string;
     if (needId) {
       const cur = await db.need.findFirst({ where: { id: needId, ownerId: user.id } });
       if (!cur) throw new Error("Necessidade não encontrada.");
+      savedId = cur.id;
       await db.need.update({
         where: { id: cur.id },
         data: { ...d, estimatedCost: d.estimatedCost ?? null, decidedAt: decided ? (cur.decidedAt ?? new Date()) : null },
@@ -187,10 +192,11 @@ export async function saveNeed(needId: string | null, raw: z.input<typeof needIn
       }
     } else {
       const n = await db.need.create({ data: { ...d, estimatedCost: d.estimatedCost ?? null, ownerId: user.id, decidedAt: decided ? new Date() : null } });
+      savedId = n.id;
       await logActivity({ ownerId: user.id, sectorId: d.sectorId, entityType: "need", entityId: n.id, verb: "created", summary: `Necessidade levantada: ${n.title}` });
     }
     refreshAll();
-    return { ok: true };
+    return { ok: true, data: { id: savedId } };
   } catch (e) {
     return fail(e);
   }
@@ -211,20 +217,22 @@ export async function deleteNeed(needId: string, restore = false): Promise<Resul
 
 // ---------- Notas ----------
 
-export async function saveNote(noteId: string | null, sectorId: string | null, content: string): Promise<Result> {
+export async function saveNote(noteId: string | null, sectorId: string | null, content: string): Promise<Result<{ id: string }>> {
   try {
     const user = await actionUser();
     const c = z.string().trim().min(1, "Escreva a nota.").max(10000).parse(content);
     if (sectorId) await ownSector(user.id, sectorId);
+    let savedId: string;
     if (noteId) {
       const cur = await db.note.findFirst({ where: { id: noteId, ownerId: user.id } });
       if (!cur) throw new Error("Nota não encontrada.");
+      savedId = cur.id;
       await db.note.update({ where: { id: cur.id }, data: { content: c } });
     } else {
-      await db.note.create({ data: { ownerId: user.id, sectorId, content: c } });
+      savedId = (await db.note.create({ data: { ownerId: user.id, sectorId, content: c } })).id;
     }
     refreshAll();
-    return { ok: true };
+    return { ok: true, data: { id: savedId } };
   } catch (e) {
     return fail(e);
   }

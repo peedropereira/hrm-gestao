@@ -187,8 +187,19 @@ const updateInput = z.object({
   kind: z.enum(["COMMENT", "FOLLOW_UP", "EVIDENCE"]),
   text: z.string().trim().max(5000).nullish(),
   attachments: z
-    .array(z.object({ url: z.string().url(), pathname: z.string().max(500), mimeType: z.string().max(100), size: z.number().int().nonnegative() }))
-    .max(10)
+    .array(
+      z.object({
+        url: z
+          .string()
+          .url()
+          .refine((u) => new URL(u).hostname.endsWith(".blob.vercel-storage.com"), "Arquivo de origem inválida."),
+        pathname: z.string().max(500),
+        mimeType: z.string().max(150),
+        size: z.number().int().nonnegative(),
+        name: z.string().trim().max(200).optional(),
+      }),
+    )
+    .max(20)
     .default([]),
 });
 

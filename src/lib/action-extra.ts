@@ -11,7 +11,7 @@ export async function loadActionExtra(ownerId: string, id: string): Promise<Acti
       updates: {
         orderBy: { createdAt: "desc" },
         take: 50,
-        select: { id: true, kind: true, text: true, createdAt: true, attachments: { select: { id: true, url: true, mimeType: true } } },
+        select: { id: true, kind: true, text: true, createdAt: true, attachments: { select: { id: true, url: true, mimeType: true, name: true, size: true } } },
       },
     },
   });

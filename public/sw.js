@@ -1,8 +1,8 @@
-// Service worker do HRM Gestão.
+// Service worker da Gestão Pessoal Pedro Souza.
 // - Arquivos estáticos do Next: cache primeiro (são versionados).
 // - Páginas e dados: rede primeiro; sem sinal, mostra a última versão carregada.
 // - API nunca é guardada em cache.
-const VERSION = "hrm-v1";
+const VERSION = "gps-v2";
 const STATIC = `${VERSION}-static`;
 const PAGES = `${VERSION}-pages`;
 const OFFLINE_URL = "/offline";

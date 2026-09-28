@@ -6,7 +6,7 @@
 @custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 
 /* ============================================================
-   Design system HRM Gestão — tokens aprovados na Fase 0
+   Design system Gestão Pessoal Pedro Souza — tokens aprovados na Fase 0
    Neutros grafite · destaque azul petróleo · status com significado fixo
    ============================================================ */
 :root {

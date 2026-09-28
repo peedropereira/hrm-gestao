@@ -1,4 +1,4 @@
-// Modelo de dados do HRM Gestão.
+// Modelo de dados da Gestão Pessoal (Pedro Souza).
 // Convenções: ids cuid, ownerId em tudo (preparado para multiusuário),
 // deletedAt para exclusão lógica (permite "Desfazer" e lixeira),
 // prazos gravados só como data (@db.Date) para não sofrer com fuso.
@@ -91,6 +91,8 @@ model Sector {
   events   Event[]
   access   SectorAccess[]
   activity ActivityLog[]
+
+  attachments Attachment[]
 
   @@unique([ownerId, slug])
 }
@@ -204,16 +206,33 @@ model ActionUpdate {
   attachments Attachment[]
 }
 
+// Foto ou documento. Fica ligado a um (e só um) dono: comentário de ação,
+// setor, demanda, necessidade, nota ou item da caixa de entrada.
 model Attachment {
-  id        String        @id @default(cuid())
-  ownerId   String
-  updateId  String?
-  update    ActionUpdate? @relation(fields: [updateId], references: [id], onDelete: Cascade)
-  url       String
-  pathname  String
-  mimeType  String
-  size      Int
-  createdAt DateTime      @default(now())
+  id          String        @id @default(cuid())
+  ownerId     String
+  name        String? // nome original do arquivo
+  caption     String? // legenda opcional
+  updateId    String?
+  update      ActionUpdate? @relation(fields: [updateId], references: [id], onDelete: Cascade)
+  sectorId    String?
+  sector      Sector?       @relation(fields: [sectorId], references: [id], onDelete: Cascade)
+  demandId    String?
+  demand      Demand?       @relation(fields: [demandId], references: [id], onDelete: Cascade)
+  needId      String?
+  need        Need?         @relation(fields: [needId], references: [id], onDelete: Cascade)
+  noteId      String?
+  note        Note?         @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  inboxItemId String?
+  inboxItem   InboxItem?    @relation(fields: [inboxItemId], references: [id], onDelete: Cascade)
+  url         String
+  pathname    String
+  mimeType    String
+  size        Int
+  createdAt   DateTime      @default(now())
+
+  @@index([ownerId, createdAt])
+  @@index([sectorId])
 }
 
 model DailyPriority {
@@ -246,6 +265,8 @@ model InboxItem {
   demo        Boolean     @default(false)
   createdAt   DateTime    @default(now())
   triagedAt   DateTime?
+
+  attachments Attachment[]
 
   @@index([ownerId, status])
 }
@@ -286,6 +307,8 @@ model Demand {
   actions Action[]
   tags    Tag[]
 
+  attachments Attachment[]
+
   @@index([ownerId, sectorId])
 }
 
@@ -325,6 +348,8 @@ model Need {
 
   tags Tag[]
 
+  attachments Attachment[]
+
   @@index([ownerId, sectorId])
 }
 
@@ -340,6 +365,8 @@ model Note {
   deletedAt DateTime?
 
   tags Tag[]
+
+  attachments Attachment[]
 
   @@index([ownerId, sectorId])
 }

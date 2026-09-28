@@ -6,6 +6,8 @@ import { FileText, ListChecks, Plus, StickyNote, Trash2, Wrench } from "lucide-r
 import { toast } from "sonner";
 import { useApp } from "@/components/app-provider";
 import { ParsedChips } from "@/components/capture-sheet";
+import { AttachmentList } from "@/components/attachments";
+import type { AttachmentDTO } from "@/lib/types";
 import { EmptyState, SectorTile } from "@/components/ds";
 import { Button } from "@/components/button";
 import { Sheet } from "@/components/sheet";
@@ -14,7 +16,7 @@ import { parseNL } from "@/lib/nl-parse";
 import { formatDateTimeShort } from "@/lib/dates";
 import { NEED_CATEGORY_LABEL } from "@/lib/labels";
 
-type Item = { id: string; text: string; createdAt: string };
+type Item = { id: string; text: string; createdAt: string; attachments: AttachmentDTO[] };
 type Target = { item: Item; kind: "demand" | "need" | "note" } | null;
 
 export function InboxView({ items }: { items: Item[] }) {
@@ -86,6 +88,11 @@ export function InboxView({ items }: { items: Item[] }) {
                 >
                   <p className="text-[17px] font-medium leading-snug md:text-[15px]">{item.text}</p>
                   <p className="mt-1 font-mono text-[12px] text-fg-3">capturado {formatDateTimeShort(new Date(item.createdAt))}</p>
+                  {item.attachments.length > 0 && (
+                    <div className="mt-2.5">
+                      <AttachmentList items={item.attachments} />
+                    </div>
+                  )}
                   <details className="mt-2 text-[14px] text-fg-3">
                     <summary className="cursor-pointer py-1">Como vira ação</summary>
                     <div className="pt-2">

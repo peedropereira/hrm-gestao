@@ -11,7 +11,8 @@ import { useApp } from "@/components/app-provider";
 import { saveDemand, saveNeed, saveNote, savePerson, saveSector } from "@/app/actions/sectors";
 import { DEMAND_STATUS_LABEL, NEED_CATEGORY_LABEL, NEED_STATUS_LABEL, PRIORITY_LABEL } from "@/lib/labels";
 import { cn } from "@/lib/utils";
-import type { PersonDTO, SectorDTO } from "@/lib/types";
+import type { AttachmentDTO, PersonDTO, SectorDTO } from "@/lib/types";
+import { AttachButtons, AttachmentList, PendingFiles, uploadAndAttach } from "@/components/attachments";
 
 export const inputCls = "h-12 w-full rounded-[12px] border border-line-strong bg-bg px-3.5 text-[16px] outline-none focus:border-ac focus:shadow-[0_0_0_4px_var(--ac-soft)] md:h-10 md:text-[14px]";
 
@@ -29,14 +30,37 @@ export function Field({ label, htmlFor, children, hint }: { label: string; htmlF
 
 function useSave() {
   const [pending, start] = useTransition();
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>, msg: string, done: () => void) =>
+  /** Salva; se houver arquivos escolhidos, envia e liga ao registro salvo. */
+  const run = (
+    fn: () => Promise<{ ok: boolean; error?: string; data?: unknown }>,
+    msg: string,
+    done: () => void,
+    attach?: { kind: "demand" | "need" | "note"; files: File[] },
+  ) =>
     start(async () => {
       const r = await fn();
       if (!r.ok) return void toast.error(r.error);
+      const savedId = (r.data as { id?: string } | undefined)?.id;
+      if (attach?.files.length && savedId) {
+        const ok = await uploadAndAttach({ kind: attach.kind, id: savedId }, attach.files);
+        if (!ok) return; // registro salvo; o erro do anexo já foi mostrado
+      }
       toast.success(msg);
       done();
     });
   return { pending, run };
+}
+
+/** Anexos dentro dos formulários: os que já existem e os novos a enviar. */
+function FormFiles({ existing, files, setFiles, disabled }: { existing: AttachmentDTO[]; files: File[]; setFiles: (f: File[]) => void; disabled: boolean }) {
+  return (
+    <fieldset className="grid gap-2.5">
+      <legend className="mb-1 text-[15px] font-semibold md:text-[13px]">Fotos e documentos</legend>
+      <AttachmentList items={existing} />
+      <PendingFiles files={files} onRemove={(i) => setFiles(files.filter((_, j) => j !== i))} />
+      <AttachButtons disabled={disabled} onFiles={(f) => setFiles([...files, ...f].slice(0, 10))} />
+    </fieldset>
+  );
 }
 
 const COLORS = ["#8B5CF6", "#6366F1", "#3B82F6", "#0EA5E9", "#06B6D4", "#14B8A6", "#10B981", "#84CC16", "#EAB308", "#A16207", "#F97316", "#F43F5E", "#EC4899", "#D946EF", "#64748B"];
@@ -213,8 +237,9 @@ export type NeedRow = {
   status: keyof typeof NEED_STATUS_LABEL;
 };
 
-export function NeedForm({ need, sectorId, open, onClose }: { need?: NeedRow; sectorId: string; open: boolean; onClose: () => void }) {
+export function NeedForm({ need, sectorId, files: existing = [], open, onClose }: { need?: NeedRow; sectorId: string; files?: AttachmentDTO[]; open: boolean; onClose: () => void }) {
   const { pending, run } = useSave();
+  const [files, setFiles] = useState<File[]>([]);
   const [f, setF] = useState({
     title: need?.title ?? "",
     details: need?.details ?? "",
@@ -247,6 +272,7 @@ export function NeedForm({ need, sectorId, open, onClose }: { need?: NeedRow; se
               }),
             "Necessidade salva",
             onClose,
+            { kind: "need", files },
           );
         }}
       >
@@ -292,8 +318,9 @@ export function NeedForm({ need, sectorId, open, onClose }: { need?: NeedRow; se
         <Field label="Detalhes" htmlFor="n-det">
           <textarea id="n-det" rows={3} className={cn(inputCls, "h-auto py-3")} value={f.details} onChange={set("details")} />
         </Field>
+        <FormFiles existing={existing} files={files} setFiles={setFiles} disabled={pending} />
         <Button type="submit" block disabled={pending}>
-          Salvar necessidade
+          {pending ? "Salvando…" : "Salvar necessidade"}
         </Button>
       </form>
     </Sheet>
@@ -313,9 +340,10 @@ export type DemandRow = {
   status: keyof typeof DEMAND_STATUS_LABEL;
 };
 
-export function DemandForm({ demand, sectorId, open, onClose }: { demand?: DemandRow; sectorId: string; open: boolean; onClose: () => void }) {
+export function DemandForm({ demand, sectorId, files: existing = [], open, onClose }: { demand?: DemandRow; sectorId: string; files?: AttachmentDTO[]; open: boolean; onClose: () => void }) {
   const { today } = useApp();
   const { pending, run } = useSave();
+  const [files, setFiles] = useState<File[]>([]);
   const [f, setF] = useState({
     title: demand?.title ?? "",
     details: demand?.details ?? "",
@@ -332,7 +360,7 @@ export function DemandForm({ demand, sectorId, open, onClose }: { demand?: Deman
         className="grid gap-4 px-1"
         onSubmit={(e) => {
           e.preventDefault();
-          run(() => saveDemand(demand?.id ?? null, { ...f, sectorId: demand?.sectorId ?? sectorId, dueDate: f.dueDate || null }), "Demanda salva", onClose);
+          run(() => saveDemand(demand?.id ?? null, { ...f, sectorId: demand?.sectorId ?? sectorId, dueDate: f.dueDate || null }), "Demanda salva", onClose, { kind: "demand", files });
         }}
       >
         <Field label="Demanda" htmlFor="d-title">
@@ -377,8 +405,9 @@ export function DemandForm({ demand, sectorId, open, onClose }: { demand?: Deman
         <Field label="Detalhes" htmlFor="d-det">
           <textarea id="d-det" rows={3} className={cn(inputCls, "h-auto py-3")} value={f.details} onChange={set("details")} />
         </Field>
+        <FormFiles existing={existing} files={files} setFiles={setFiles} disabled={pending} />
         <Button type="submit" block disabled={pending}>
-          Salvar demanda
+          {pending ? "Salvando…" : "Salvar demanda"}
         </Button>
       </form>
     </Sheet>
@@ -386,8 +415,9 @@ export function DemandForm({ demand, sectorId, open, onClose }: { demand?: Deman
 }
 
 // ---------- Nota ----------
-export function NoteForm({ note, sectorId, open, onClose }: { note?: { id: string; content: string }; sectorId: string; open: boolean; onClose: () => void }) {
+export function NoteForm({ note, sectorId, files: existing = [], open, onClose }: { note?: { id: string; content: string }; sectorId: string; files?: AttachmentDTO[]; open: boolean; onClose: () => void }) {
   const { pending, run } = useSave();
+  const [files, setFiles] = useState<File[]>([]);
   const [content, setContent] = useState(note?.content ?? "");
   return (
     <Sheet open={open} onClose={onClose} title={note ? "Editar nota" : "Nova nota"} wide>
@@ -395,15 +425,16 @@ export function NoteForm({ note, sectorId, open, onClose }: { note?: { id: strin
         className="grid gap-4 px-1"
         onSubmit={(e) => {
           e.preventDefault();
-          run(() => saveNote(note?.id ?? null, sectorId, content), "Nota salva", onClose);
+          run(() => saveNote(note?.id ?? null, sectorId, content), "Nota salva", onClose, { kind: "note", files });
         }}
       >
         <label htmlFor="note-c" className="sr-only">
           Nota
         </label>
         <textarea id="note-c" rows={6} data-autofocus className={cn(inputCls, "h-auto py-3 leading-relaxed")} value={content} onChange={(e) => setContent(e.target.value)} required />
+        <FormFiles existing={existing} files={files} setFiles={setFiles} disabled={pending} />
         <Button type="submit" block disabled={pending}>
-          Salvar nota
+          {pending ? "Salvando…" : "Salvar nota"}
         </Button>
       </form>
     </Sheet>

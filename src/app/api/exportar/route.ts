@@ -10,7 +10,7 @@ export async function GET() {
   if (!ownerId) return NextResponse.json({ error: "Faça login para continuar." }, { status: 401 });
 
   const where = { ownerId };
-  const [sectors, people, actions, demands, needs, notes, tags, kpis, events, inbox, priorities, activity] = await Promise.all([
+  const [sectors, people, actions, demands, needs, notes, tags, kpis, events, inbox, priorities, activity, attachments] = await Promise.all([
     db.sector.findMany({ where }),
     db.person.findMany({ where }),
     db.action.findMany({ where, include: { subtasks: true, updates: { include: { attachments: true } }, tags: { select: { name: true } } } }),
@@ -23,17 +23,18 @@ export async function GET() {
     db.inboxItem.findMany({ where }),
     db.dailyPriority.findMany({ where }),
     db.activityLog.findMany({ where }),
+    db.attachment.findMany({ where }),
   ]);
 
   const body = JSON.stringify(
-    { app: "HRM Gestão", version: 1, exportedAt: new Date().toISOString(), sectors, people, actions, demands, needs, notes, tags, kpis, events, inbox, priorities, activity },
+    { app: "Pedro Souza · Gestão Pessoal", version: 1, exportedAt: new Date().toISOString(), sectors, people, actions, demands, needs, notes, tags, kpis, events, inbox, priorities, activity, attachments },
     null,
     2,
   );
   return new NextResponse(body, {
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      "Content-Disposition": `attachment; filename="hrm-gestao-backup-${todayISO()}.json"`,
+      "Content-Disposition": `attachment; filename="gestao-pedro-souza-backup-${todayISO()}.json"`,
       "Cache-Control": "no-store",
     },
   });

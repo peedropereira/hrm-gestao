@@ -2,15 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, LayoutGrid, ListChecks, Loader2, Search, StickyNote, User, Wrench, Calendar, Inbox } from "lucide-react";
+import { FileText, LayoutGrid, ListChecks, Loader2, Paperclip, Search, StickyNote, User, Wrench, Calendar, Inbox } from "lucide-react";
 import { Sheet } from "@/components/sheet";
 import { useApp } from "@/components/app-provider";
 import { cn } from "@/lib/utils";
 
-export type SearchHit = { type: "action" | "demand" | "need" | "note" | "sector" | "person" | "event" | "inbox"; id: string; title: string; sub: string; href: string };
+export type SearchHit = { type: "action" | "demand" | "need" | "note" | "sector" | "person" | "event" | "inbox" | "file"; id: string; title: string; sub: string; href: string };
 
-const ICON = { action: ListChecks, demand: FileText, need: Wrench, note: StickyNote, sector: LayoutGrid, person: User, event: Calendar, inbox: Inbox };
-const TYPE_LABEL = { action: "Ação", demand: "Demanda", need: "Necessidade", note: "Nota", sector: "Setor", person: "Pessoa", event: "Evento", inbox: "Caixa" };
+const ICON = { action: ListChecks, demand: FileText, need: Wrench, note: StickyNote, sector: LayoutGrid, person: User, event: Calendar, inbox: Inbox, file: Paperclip };
+const TYPE_LABEL = { action: "Ação", demand: "Demanda", need: "Necessidade", note: "Nota", sector: "Setor", person: "Pessoa", event: "Evento", inbox: "Caixa", file: "Arquivo" };
 
 export function useSearch(q: string) {
   const [hits, setHits] = useState<SearchHit[]>([]);
@@ -102,7 +102,7 @@ export function SearchPalette() {
               setActive((a) => Math.max(a - 1, 0));
             } else if (e.key === "Enter" && hits[active]) pick(hits[active]);
           }}
-          placeholder="Ações, demandas, necessidades, notas, pessoas…  (#tag)"
+          placeholder="Ações, demandas, notas, pessoas, arquivos…  (#tag)"
           aria-label="Buscar"
           className="h-12 w-full rounded-[12px] border border-line-strong bg-bg pl-11 pr-10 text-[16px] outline-none focus:border-ac focus:shadow-[0_0_0_4px_var(--ac-soft)]"
         />

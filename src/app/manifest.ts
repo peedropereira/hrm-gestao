@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "HRM Gestão",
-    short_name: "HRM Gestão",
-    description: "Agenda, ações, setores e metas do Gerente Geral da HRM Caldeiraria.",
+    name: "Pedro Souza · Gestão Pessoal",
+    short_name: "Gestão PS",
+    description: "Sistema de gestão pessoal de Pedro Souza: agenda, ações, setores e metas.",
     lang: "pt-BR",
     start_url: "/hoje",
     scope: "/",

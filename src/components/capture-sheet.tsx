@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { Calendar, Check, Flame, Inbox, Mic, Tag, User } from "lucide-react";
+import { Calendar, Check, Flame, Inbox, Loader2, Mic, Tag, User } from "lucide-react";
 import { toast } from "sonner";
 import { useApp } from "@/components/app-provider";
 import { Sheet } from "@/components/sheet";
@@ -10,7 +10,11 @@ import { Icon } from "@/components/icon";
 import { parseNL, type NLResult } from "@/lib/nl-parse";
 import { formatBR, formatShort } from "@/lib/dates";
 import { KIND_ICON, KIND_LABEL } from "@/lib/labels";
-import { createAction } from "@/app/actions/actions";
+import { addActionUpdate, createAction } from "@/app/actions/actions";
+import { attachFiles } from "@/app/actions/attachments";
+import { AttachButtons, PendingFiles } from "@/components/attachments";
+import { uploadFiles } from "@/lib/upload-client";
+import type { UploadedFile } from "@/lib/upload-rules";
 import { captureToInbox } from "@/app/actions/inbox";
 import { cn } from "@/lib/utils";
 
@@ -107,21 +111,28 @@ export function ParsedChips({ r }: { r: NLResult }) {
 export function CaptureSheet() {
   const { captureOpen, closeCapture, captureSeed, today, people, sectors } = useApp();
   const [text, setText] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const [progress, setProgress] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
   const [wasOpen, setWasOpen] = useState(false);
   if (captureOpen !== wasOpen) {
     // ao abrir, começa pelo texto sugerido (ex.: "#qualidade ")
     setWasOpen(captureOpen);
-    if (captureOpen) setText(captureSeed);
+    if (captureOpen) {
+      setText(captureSeed);
+      setFiles([]);
+    }
   }
 
   const parsed = useMemo(() => parseNL(text, { today, people, sectors }), [text, today, people, sectors]);
+  const hasContent = !!text.trim() || files.length > 0;
 
   const submit = (mode: "action" | "inbox") => {
     const t = text.trim();
-    if (!t) return;
+    if (!hasContent) return;
     if (!navigator.onLine) {
+      if (files.length) return void toast.error("Sem sinal: fotos e documentos precisam de conexão. O texto pode ser guardado sem os anexos.");
       writeQueue([...readQueue(), { text: t, mode, at: Date.now() }]);
       toast("Sem sinal: guardado no aparelho. Envio automático quando a conexão voltar.");
       setText("");
@@ -129,30 +140,54 @@ export function CaptureSheet() {
       return;
     }
     start(async () => {
-      const r =
-        mode === "action"
-          ? await createAction({
-              title: parsed.title || t,
-              kind: parsed.kind,
-              assigneeId: parsed.assigneeId,
-              sectorId: parsed.sectorId,
-              dueDate: parsed.dueDate,
-              urgent: parsed.urgent,
-              important: parsed.important,
-              tags: parsed.tags,
-              origin: "CAPTURE",
-            })
-          : await captureToInbox(t);
-      if (r.ok) {
-        toast.success(mode === "action" ? "Ação criada" : "Guardado na Caixa de Entrada");
-        setText("");
-        closeCapture();
-      } else toast.error(r.error);
+      // 1) envia os arquivos direto do aparelho
+      let uploaded: UploadedFile[] = [];
+      if (files.length) {
+        try {
+          uploaded = await uploadFiles(files, (i, total, pct) => setProgress(total > 1 ? `Enviando ${i} de ${total} · ${pct}%` : `Enviando · ${pct}%`));
+        } catch (e) {
+          setProgress(null);
+          return void toast.error(e instanceof Error ? e.message : "Não foi possível enviar o arquivo.");
+        }
+        setProgress(null);
+      }
+      const fallback = files.length ? `${files.length === 1 ? "Anexo capturado" : "Anexos capturados"} em ${formatBR(today)}` : "";
+      // 2) cria a ação (com os anexos como evidência) ou o item da caixa
+      if (mode === "action") {
+        const r = await createAction({
+          title: parsed.title || t || fallback,
+          kind: parsed.kind,
+          assigneeId: parsed.assigneeId,
+          sectorId: parsed.sectorId,
+          dueDate: parsed.dueDate,
+          urgent: parsed.urgent,
+          important: parsed.important,
+          tags: parsed.tags,
+          origin: "CAPTURE",
+        });
+        if (!r.ok) return void toast.error(r.error);
+        if (uploaded.length && r.data) {
+          const u = await addActionUpdate(r.data.id, { kind: "EVIDENCE", text: null, attachments: uploaded });
+          if (!u.ok) toast.error(u.error);
+        }
+        toast.success("Ação criada");
+      } else {
+        const r = await captureToInbox(t || fallback);
+        if (!r.ok) return void toast.error(r.error);
+        if (uploaded.length && r.data) {
+          const u = await attachFiles({ kind: "inbox", id: r.data.id }, uploaded);
+          if (!u.ok) toast.error(u.error);
+        }
+        toast.success("Guardado na Caixa de Entrada");
+      }
+      setText("");
+      setFiles([]);
+      closeCapture();
     });
   };
 
   return (
-    <Sheet open={captureOpen} onClose={closeCapture} title="Capturar" description="Escreva ou dite. O sistema separa tipo, pessoa, prazo e setor." wide>
+    <Sheet open={captureOpen} onClose={closeCapture} title="Capturar" description="Escreva, dite ou fotografe. O sistema separa tipo, pessoa, prazo e setor." wide>
       <form
         className="grid gap-3.5"
         onSubmit={(e) => {
@@ -180,12 +215,19 @@ export function CaptureSheet() {
           className="min-h-14 w-full resize-none rounded-[14px] border-[1.5px] border-ac bg-bg p-3.5 text-[17px] shadow-[0_0_0_4px_var(--ac-soft)] outline-none placeholder:text-fg-3"
         />
         {text.trim() && <ParsedChips r={parsed} />}
+        <AttachButtons disabled={pending} onFiles={(f) => setFiles((cur) => [...cur, ...f].slice(0, 10))} />
+        <PendingFiles files={files} onRemove={(i) => setFiles(files.filter((_, j) => j !== i))} />
+        {progress && (
+          <p className="flex items-center gap-2 px-1 text-[14px] font-medium text-ac-text" role="status">
+            <Loader2 className="size-4 animate-spin" /> {progress}
+          </p>
+        )}
         <div className="grid gap-2 md:grid-cols-2">
-          <Button type="submit" block disabled={!text.trim() || pending}>
-            <Check />
+          <Button type="submit" block disabled={!hasContent || pending}>
+            {pending ? <Loader2 className="animate-spin" /> : <Check />}
             Criar ação
           </Button>
-          <Button variant="secondary" block disabled={!text.trim() || pending} onClick={() => submit("inbox")}>
+          <Button variant="secondary" block disabled={!hasContent || pending} onClick={() => submit("inbox")}>
             <Inbox />
             Guardar na Caixa de Entrada
           </Button>

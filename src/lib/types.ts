@@ -46,6 +46,16 @@ export type ActionDTO = {
   tags: string[];
 };
 
+export type AttachmentDTO = {
+  id: string;
+  url: string;
+  name: string | null;
+  mimeType: string;
+  size: number;
+  createdAt: string;
+  source?: string; // de onde veio: "Ação: …", "Demanda: …"
+};
+
 export type ActionExtra = {
   subtasks: { id: string; title: string; done: boolean }[];
   updates: {
@@ -53,7 +63,7 @@ export type ActionExtra = {
     kind: "COMMENT" | "FOLLOW_UP" | "EVIDENCE";
     text: string | null;
     createdAt: string;
-    attachments: { id: string; url: string; mimeType: string }[];
+    attachments: { id: string; url: string; mimeType: string; name: string | null; size: number }[];
   }[];
 };
 

@@ -1,6 +1,8 @@
-# HRM Gestão
+# Pedro Souza · Gestão Pessoal
 
-Sistema de gestão pessoal do Gerente Geral da HRM Caldeiraria Industrial: Painel do Dia, Ações, Caixa de Entrada e Setores, com Agenda, Metas e Relatórios chegando nas próximas fases.
+Sistema de gestão pessoal de Pedro Souza: Painel do Dia, Ações, Caixa de Entrada e Setores, com fotos e documentos anexados (inclusive tirando foto direto pelo app). Agenda, Metas e Relatórios chegam nas próximas fases.
+
+Endereço: https://hrm-gestao.vercel.app
 
 Feito para o celular (instala como aplicativo) e para o computador do escritório.
 

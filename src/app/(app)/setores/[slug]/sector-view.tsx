@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronLeft, MessageCircle, Pencil, Phone, Plus, Trash2, UserPlus } from "lucide-react";
+import { ChevronLeft, MessageCircle, Paperclip, Pencil, Phone, Plus, Trash2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { useApp } from "@/components/app-provider";
 import { CheckButton, FollowUpLine, SwipeCard } from "@/components/action-bits";
@@ -13,9 +13,12 @@ import { deleteDemand, deleteNeed, deleteNote, deletePerson } from "@/app/action
 import { formatBR, formatShort } from "@/lib/dates";
 import { DEMAND_STATUS_LABEL, NEED_CATEGORY_LABEL, NEED_STATUS_LABEL, NEED_STATUS_TONE, PRIORITY_LABEL, formatBRL } from "@/lib/labels";
 import { cn } from "@/lib/utils";
-import type { ActionDTO, PersonDTO, SectorDTO, SectorHealth } from "@/lib/types";
+import type { ActionDTO, AttachmentDTO, PersonDTO, SectorDTO, SectorHealth } from "@/lib/types";
+import { AttachmentUploader } from "@/components/attachments";
 import type { KpiSnapshot } from "@/lib/data";
 import { DemandForm, NeedForm, NoteForm, PersonForm, SectorForm, type DemandRow, type NeedRow } from "../sector-forms";
+
+export type SectorAttachment = AttachmentDTO & { demandId: string | null; needId: string | null; noteId: string | null };
 
 type Props = {
   sector: SectorDTO;
@@ -28,6 +31,7 @@ type Props = {
   demands: DemandRow[];
   notes: { id: string; content: string; createdAt: string }[];
   timeline: { id: string; summary: string; at: string }[];
+  attachments: SectorAttachment[];
 };
 
 const digits = (s: string) => s.replace(/\D/g, "");
@@ -72,6 +76,7 @@ export function SectorView(p: Props) {
     ["necessidades", "Necessidades", pendingNeeds.length],
     ["demandas", "Demandas", openDemands.length],
     ["notas", "Notas", p.notes.length],
+    ["arquivos", "Arquivos", p.attachments.length],
     ["pessoas", "Pessoas", team.length],
   ] as const;
 
@@ -156,6 +161,7 @@ export function SectorView(p: Props) {
               <Badge tone={NEED_STATUS_TONE[n.status]}>{NEED_STATUS_LABEL[n.status]}</Badge>
               <span className="text-[14px] text-fg-3 md:text-[13px]">
                 {NEED_CATEGORY_LABEL[n.category]} · prioridade {PRIORITY_LABEL[n.priority].toLowerCase()}
+                <ClipCount n={p.attachments.filter((a) => a.needId === n.id).length} />
               </span>
               {editable && (
                 <span className="ml-auto flex gap-1">
@@ -189,6 +195,7 @@ export function SectorView(p: Props) {
               <div className="flex flex-wrap items-center gap-2 text-[14px] text-fg-3 md:text-[13px]">
                 <span>
                   {d.source ?? "Origem não informada"} · entrou {formatBR(d.receivedAt)} · {PRIORITY_LABEL[d.priority]}
+                  <ClipCount n={p.attachments.filter((a) => a.demandId === d.id).length} />
                 </span>
                 <Badge tone={d.status === "IN_PROGRESS" ? "blue" : d.status === "DONE" ? "green" : "neutral"}>{DEMAND_STATUS_LABEL[d.status]}</Badge>
                 {editable && (
@@ -297,6 +304,7 @@ export function SectorView(p: Props) {
             type="button"
             onClick={() => setTab(k)}
             aria-current={p.tab === k ? "page" : undefined}
+            ref={p.tab === k ? (el) => el?.scrollIntoView({ block: "nearest", inline: "center" }) : undefined}
             className={cn("inline-flex h-[46px] shrink-0 items-center gap-1.5 border-b-[2.5px] px-2.5 text-[15px] font-semibold md:h-10 md:text-[13px]", p.tab === k ? "border-ac text-fg" : "border-transparent text-fg-3")}
           >
             {l}
@@ -429,6 +437,7 @@ export function SectorView(p: Props) {
                     <p className="whitespace-pre-wrap text-[16px] leading-relaxed md:text-[14px]">{n.content}</p>
                     <div className="mt-1 flex items-center gap-1 text-[12px] text-fg-3">
                       <time className="font-mono">{n.createdAt}</time>
+                      <ClipCount n={p.attachments.filter((a) => a.noteId === n.id).length} />
                       <button type="button" className="ml-auto grid size-10 place-items-center rounded-[8px] hover:bg-surface-2" aria-label="Editar nota" onClick={() => setForm({ kind: "note", row: n })}>
                         <Pencil className="size-4" />
                       </button>
@@ -440,6 +449,21 @@ export function SectorView(p: Props) {
                 ))}
               </ul>
             )}
+          </Card>
+        )}
+
+        {p.tab === "arquivos" && (
+          <Card>
+            <PanelHead title="Fotos e documentos" count={p.attachments.length} />
+            <div className="p-4">
+              <AttachmentUploader
+                target={{ kind: "sector", id: s.id }}
+                items={p.attachments}
+                showSource
+                onChanged={() => router.refresh()}
+                empty={<p className="text-[15px] text-fg-3">Nada anexado ainda. Fotos e documentos de ações, demandas, necessidades e notas deste setor também aparecem aqui.</p>}
+              />
+            </div>
           </Card>
         )}
 
@@ -493,10 +517,20 @@ export function SectorView(p: Props) {
       </div>
 
       {editSector && <SectorForm sector={s} open={editSector} onClose={() => setEditSector(false)} />}
-      {form?.kind === "need" && <NeedForm need={form.row} sectorId={s.id} open onClose={() => setForm(null)} />}
-      {form?.kind === "demand" && <DemandForm demand={form.row} sectorId={s.id} open onClose={() => setForm(null)} />}
-      {form?.kind === "note" && <NoteForm note={form.row} sectorId={s.id} open onClose={() => setForm(null)} />}
+      {form?.kind === "need" && <NeedForm need={form.row} sectorId={s.id} files={form.row ? p.attachments.filter((a) => a.needId === form.row!.id) : []} open onClose={() => setForm(null)} />}
+      {form?.kind === "demand" && <DemandForm demand={form.row} sectorId={s.id} files={form.row ? p.attachments.filter((a) => a.demandId === form.row!.id) : []} open onClose={() => setForm(null)} />}
+      {form?.kind === "note" && <NoteForm note={form.row} sectorId={s.id} files={form.row ? p.attachments.filter((a) => a.noteId === form.row!.id) : []} open onClose={() => setForm(null)} />}
       {form?.kind === "person" && <PersonForm person={form.row} sectorId={s.id} open onClose={() => setForm(null)} />}
     </div>
+  );
+}
+
+function ClipCount({ n }: { n: number }) {
+  if (!n) return null;
+  return (
+    <span className="inline-flex items-center gap-0.5 text-[13px] font-medium text-fg-3" title={`${n} ${n === 1 ? "anexo" : "anexos"}`}>
+      <Paperclip className="size-3.5" aria-hidden="true" />
+      {n}
+    </span>
   );
 }
