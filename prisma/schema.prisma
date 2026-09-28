@@ -1,0 +1,447 @@
+// Modelo de dados do HRM Gestão.
+// Convenções: ids cuid, ownerId em tudo (preparado para multiusuário),
+// deletedAt para exclusão lógica (permite "Desfazer" e lixeira),
+// prazos gravados só como data (@db.Date) para não sofrer com fuso.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------- Usuários e acesso ----------
+
+enum Role {
+  ADMIN
+  LEADER
+}
+
+model User {
+  id             String   @id @default(cuid())
+  login          String   @unique
+  name           String
+  passwordHash   String
+  role           Role     @default(ADMIN)
+  sessionVersion Int      @default(1) // incrementa ao trocar a senha: derruba sessões antigas
+  onboardingDone Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  sectorAccess SectorAccess[]
+  settings     UserSettings?
+}
+
+// Futuro: líder de setor vê só os setores liberados aqui.
+model SectorAccess {
+  userId   String
+  sectorId String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sector   Sector @relation(fields: [sectorId], references: [id], onDelete: Cascade)
+
+  @@id([userId, sectorId])
+}
+
+model UserSettings {
+  userId            String @id
+  user              User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  redOverdueMin     Int    @default(2) // semáforo vermelho a partir de N atrasadas
+  kpiRedPercent     Int    @default(10) // meta mais de X% fora do alvo = vermelho
+  delegateAlertDays Int    @default(3) // dias úteis sem follow-up
+}
+
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  login     String
+  ip        String
+  success   Boolean
+  createdAt DateTime @default(now())
+
+  @@index([login, createdAt])
+  @@index([ip, createdAt])
+}
+
+// ---------- Setores e pessoas ----------
+
+model Sector {
+  id        String    @id @default(cuid())
+  ownerId   String
+  name      String
+  shortName String?
+  slug      String
+  color     String // hex, identidade do setor
+  icon      String // nome do ícone
+  parentId  String?
+  parent    Sector?   @relation("SubSectors", fields: [parentId], references: [id])
+  children  Sector[]  @relation("SubSectors")
+  order     Int       @default(0)
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  people   Person[]
+  actions  Action[]
+  demands  Demand[]
+  needs    Need[]
+  kpis     Kpi[]
+  notes    Note[]
+  events   Event[]
+  access   SectorAccess[]
+  activity ActivityLog[]
+
+  @@unique([ownerId, slug])
+}
+
+model Person {
+  id        String    @id @default(cuid())
+  ownerId   String
+  name      String
+  role      String? // cargo
+  phone     String?
+  whatsapp  String?
+  email     String?
+  sectorId  String?
+  sector    Sector?   @relation(fields: [sectorId], references: [id])
+  isLeader  Boolean   @default(false)
+  demo      Boolean   @default(false) // dado de exemplo (pode ser limpo)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  actions Action[]
+
+  @@index([ownerId])
+}
+
+// ---------- Ações (núcleo) ----------
+
+enum ActionOrigin {
+  MEETING
+  DEMAND
+  KPI
+  CAPTURE
+  VISIT
+}
+
+enum ActionKind {
+  DO
+  DELEGATE
+  FOLLOW_UP
+  DECIDE
+}
+
+enum ActionStatus {
+  TODO
+  IN_PROGRESS
+  WAITING
+  DONE
+  CANCELED
+}
+
+model Action {
+  id             String       @id @default(cuid())
+  ownerId        String
+  title          String
+  description    String?
+  sectorId       String?
+  sector         Sector?      @relation(fields: [sectorId], references: [id])
+  origin         ActionOrigin @default(CAPTURE)
+  originNote     String? // ex.: "Reunião de produção 21/09"
+  demandId       String?
+  demand         Demand?      @relation(fields: [demandId], references: [id])
+  eventId        String?
+  event          Event?       @relation(fields: [eventId], references: [id])
+  assigneeId     String? // vazio = eu mesmo
+  assignee       Person?      @relation(fields: [assigneeId], references: [id])
+  kind           ActionKind   @default(DO)
+  dueDate        DateTime?    @db.Date
+  urgent         Boolean      @default(false)
+  important      Boolean      @default(false)
+  status         ActionStatus @default(TODO)
+  completedAt    DateTime?
+  lastFollowUpAt DateTime?
+  alertAfterDays Int?
+  demo           Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+
+  subtasks   Subtask[]
+  updates    ActionUpdate[]
+  tags       Tag[]
+  priorities DailyPriority[]
+
+  @@index([ownerId, status, dueDate])
+  @@index([sectorId, status])
+}
+
+model Subtask {
+  id        String   @id @default(cuid())
+  actionId  String
+  action    Action   @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  title     String
+  done      Boolean  @default(false)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+enum UpdateKind {
+  COMMENT
+  FOLLOW_UP
+  EVIDENCE
+}
+
+model ActionUpdate {
+  id          String       @id @default(cuid())
+  actionId    String
+  action      Action       @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  kind        UpdateKind   @default(COMMENT)
+  text        String?
+  createdAt   DateTime     @default(now())
+  attachments Attachment[]
+}
+
+model Attachment {
+  id        String        @id @default(cuid())
+  ownerId   String
+  updateId  String?
+  update    ActionUpdate? @relation(fields: [updateId], references: [id], onDelete: Cascade)
+  url       String
+  pathname  String
+  mimeType  String
+  size      Int
+  createdAt DateTime      @default(now())
+}
+
+model DailyPriority {
+  id       String   @id @default(cuid())
+  ownerId  String
+  date     DateTime @db.Date
+  position Int
+  actionId String
+  action   Action   @relation(fields: [actionId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerId, date, actionId])
+  @@index([ownerId, date])
+}
+
+// ---------- Caixa de entrada ----------
+
+enum InboxStatus {
+  PENDING
+  TRIAGED
+  DISCARDED
+}
+
+model InboxItem {
+  id          String      @id @default(cuid())
+  ownerId     String
+  text        String
+  status      InboxStatus @default(PENDING)
+  convertedTo String? // ACTION, DEMAND, NEED, NOTE
+  convertedId String?
+  demo        Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  triagedAt   DateTime?
+
+  @@index([ownerId, status])
+}
+
+// ---------- Demandas, necessidades, notas ----------
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum DemandStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  CANCELED
+}
+
+model Demand {
+  id         String       @id @default(cuid())
+  ownerId    String
+  sectorId   String
+  sector     Sector       @relation(fields: [sectorId], references: [id])
+  title      String
+  details    String?
+  source     String? // origem: cliente, diretoria, interna...
+  receivedAt DateTime     @default(now()) @db.Date
+  dueDate    DateTime?    @db.Date
+  priority   Priority     @default(MEDIUM)
+  status     DemandStatus @default(OPEN)
+  demo       Boolean      @default(false)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  deletedAt  DateTime?
+
+  actions Action[]
+  tags    Tag[]
+
+  @@index([ownerId, sectorId])
+}
+
+enum NeedCategory {
+  PEOPLE
+  EQUIPMENT
+  INVESTMENT
+  TRAINING
+  PROCESS
+}
+
+enum NeedStatus {
+  RAISED
+  ANALYSIS
+  APPROVED
+  FULFILLED
+  REJECTED
+}
+
+model Need {
+  id            String       @id @default(cuid())
+  ownerId       String
+  sectorId      String
+  sector        Sector       @relation(fields: [sectorId], references: [id])
+  title         String
+  details       String?
+  category      NeedCategory
+  estimatedCost Decimal?     @db.Decimal(14, 2)
+  recurring     Boolean      @default(false) // custo mensal
+  priority      Priority     @default(MEDIUM)
+  status        NeedStatus   @default(RAISED)
+  decidedAt     DateTime?
+  demo          Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  deletedAt     DateTime?
+
+  tags Tag[]
+
+  @@index([ownerId, sectorId])
+}
+
+model Note {
+  id        String    @id @default(cuid())
+  ownerId   String
+  sectorId  String?
+  sector    Sector?   @relation(fields: [sectorId], references: [id])
+  content   String
+  demo      Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  tags Tag[]
+
+  @@index([ownerId, sectorId])
+}
+
+model Tag {
+  id      String   @id @default(cuid())
+  ownerId String
+  name    String
+  actions Action[]
+  demands Demand[]
+  needs   Need[]
+  notes   Note[]
+
+  @@unique([ownerId, name])
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  ownerId    String
+  sectorId   String?
+  sector     Sector?  @relation(fields: [sectorId], references: [id])
+  entityType String
+  entityId   String
+  verb       String
+  summary    String
+  demo       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([ownerId, sectorId, createdAt])
+}
+
+// ---------- Metas (fase 3) e agenda (fase 2): estrutura já pronta ----------
+
+enum KpiDirection {
+  HIGHER_BETTER
+  LOWER_BETTER
+}
+
+model Kpi {
+  id        String       @id @default(cuid())
+  ownerId   String
+  sectorId  String
+  sector    Sector       @relation(fields: [sectorId], references: [id])
+  name      String
+  unit      String
+  direction KpiDirection
+  target    Decimal      @db.Decimal(14, 4)
+  source    String?
+  template  String?
+  active    Boolean      @default(true)
+  demo      Boolean      @default(false)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  deletedAt DateTime?
+
+  entries KpiEntry[]
+}
+
+model KpiEntry {
+  id     String   @id @default(cuid())
+  kpiId  String
+  kpi    Kpi      @relation(fields: [kpiId], references: [id], onDelete: Cascade)
+  month  DateTime @db.Date // primeiro dia do mês
+  value  Decimal  @db.Decimal(14, 4)
+  target Decimal? @db.Decimal(14, 4)
+
+  @@unique([kpiId, month])
+}
+
+enum EventType {
+  MEETING
+  CLIENT_VISIT
+  TECH_VISIT
+  AUDIT
+  SECTOR_MEETING
+  PERSONAL_BLOCK
+  FOLLOW_UP
+}
+
+model Event {
+  id             String    @id @default(cuid())
+  ownerId        String
+  title          String
+  type           EventType @default(MEETING)
+  startsAt       DateTime
+  endsAt         DateTime
+  allDay         Boolean   @default(false)
+  location       String?
+  sectorId       String?
+  sector         Sector?   @relation(fields: [sectorId], references: [id])
+  demandId       String?
+  rrule          String? // recorrência no padrão iCalendar
+  minutes        String? // ata
+  externalId     String? // futuro: Microsoft Graph
+  externalSource String?
+  etag           String?
+  demo           Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  actions Action[]
+
+  @@index([ownerId, startsAt])
+}
