@@ -19,7 +19,7 @@ const uploadedSchema = z.object({
 });
 
 const target = z.object({
-  kind: z.enum(["sector", "demand", "need", "note", "inbox"]),
+  kind: z.enum(["sector", "demand", "need", "note", "inbox", "event"]),
   id,
 });
 
@@ -45,6 +45,11 @@ async function resolveTarget(ownerId: string, t: z.infer<typeof target>) {
       const n = await db.note.findFirst({ where, select: { id: true, sectorId: true } });
       if (!n) throw new Error("Nota não encontrada.");
       return { data: { noteId: n.id }, sectorId: n.sectorId, label: "nota" };
+    }
+    case "event": {
+      const e = await db.event.findFirst({ where, select: { id: true, sectorId: true, title: true } });
+      if (!e) throw new Error("Compromisso não encontrado.");
+      return { data: { eventId: e.id }, sectorId: e.sectorId, label: `compromisso “${e.title}”` };
     }
     case "inbox": {
       const i = await db.inboxItem.findFirst({ where, select: { id: true } });

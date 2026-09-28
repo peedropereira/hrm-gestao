@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { BellRing, Camera, Check, Clock, History, Loader2, MessageCircle, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useApp } from "@/components/app-provider";
@@ -234,8 +235,17 @@ export function ActionDetail({ action: a, compact, initialExtra }: { action: Act
         </dd>
         <dt className={label}>Origem</dt>
         <dd className="text-[14px] text-fg-2">
-          {ORIGIN_LABEL[a.origin]}
-          {a.originNote ? ` · ${a.originNote}` : ""}
+          {a.eventId ? (
+            <Link href={`/agenda/evento/${a.eventId}`} className="text-ac-text underline-offset-2 hover:underline">
+              {ORIGIN_LABEL[a.origin]}
+              {a.originNote ? ` · ${a.originNote}` : ""}
+            </Link>
+          ) : (
+            <>
+              {ORIGIN_LABEL[a.origin]}
+              {a.originNote ? ` · ${a.originNote}` : ""}
+            </>
+          )}
         </dd>
       </dl>
 

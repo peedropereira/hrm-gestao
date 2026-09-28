@@ -171,10 +171,11 @@ model Action {
   updatedAt      DateTime     @updatedAt
   deletedAt      DateTime?
 
-  subtasks   Subtask[]
-  updates    ActionUpdate[]
-  tags       Tag[]
-  priorities DailyPriority[]
+  subtasks     Subtask[]
+  updates      ActionUpdate[]
+  linkedEvents Event[]         @relation("EventLinkedAction")
+  tags         Tag[]
+  priorities   DailyPriority[]
 
   @@index([ownerId, status, dueDate])
   @@index([sectorId, status])
@@ -225,6 +226,8 @@ model Attachment {
   note        Note?         @relation(fields: [noteId], references: [id], onDelete: Cascade)
   inboxItemId String?
   inboxItem   InboxItem?    @relation(fields: [inboxItemId], references: [id], onDelete: Cascade)
+  eventId     String?
+  event       Event?        @relation(fields: [eventId], references: [id], onDelete: Cascade)
   url         String
   pathname    String
   mimeType    String
@@ -306,6 +309,7 @@ model Demand {
 
   actions Action[]
   tags    Tag[]
+  events  Event[]
 
   attachments Attachment[]
 
@@ -447,28 +451,39 @@ enum EventType {
 }
 
 model Event {
-  id             String    @id @default(cuid())
+  id             String     @id @default(cuid())
   ownerId        String
   title          String
-  type           EventType @default(MEETING)
+  type           EventType  @default(MEETING)
   startsAt       DateTime
   endsAt         DateTime
-  allDay         Boolean   @default(false)
+  allDay         Boolean    @default(false)
   location       String?
   sectorId       String?
-  sector         Sector?   @relation(fields: [sectorId], references: [id])
+  sector         Sector?    @relation(fields: [sectorId], references: [id])
   demandId       String?
-  rrule          String? // recorrência no padrão iCalendar
+  demand         Demand?    @relation(fields: [demandId], references: [id])
+  linkedActionId String? // ação sobre a qual é o compromisso
+  linkedAction   Action?    @relation("EventLinkedAction", fields: [linkedActionId], references: [id])
+  attendees      String? // participantes (texto livre)
+  rrule          String? // recorrência no padrão iCalendar (RRULE)
+  exdates        DateTime[] @default([]) @db.Date // datas canceladas ou editadas à parte
+  parentId       String? // ocorrência editada à parte de uma série
+  parent         Event?     @relation("EventOccurrences", fields: [parentId], references: [id])
+  occurrences    Event[]    @relation("EventOccurrences")
+  occurrenceDate DateTime?  @db.Date // data original da ocorrência dentro da série
   minutes        String? // ata
   externalId     String? // futuro: Microsoft Graph
   externalSource String?
   etag           String?
-  demo           Boolean   @default(false)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  demo           Boolean    @default(false)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
   deletedAt      DateTime?
 
-  actions Action[]
+  actions     Action[]
+  attachments Attachment[]
 
   @@index([ownerId, startsAt])
+  @@index([parentId])
 }

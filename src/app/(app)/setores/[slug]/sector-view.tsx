@@ -13,7 +13,8 @@ import { deleteDemand, deleteNeed, deleteNote, deletePerson } from "@/app/action
 import { formatBR, formatShort } from "@/lib/dates";
 import { DEMAND_STATUS_LABEL, NEED_CATEGORY_LABEL, NEED_STATUS_LABEL, NEED_STATUS_TONE, PRIORITY_LABEL, formatBRL } from "@/lib/labels";
 import { cn } from "@/lib/utils";
-import type { ActionDTO, AttachmentDTO, PersonDTO, SectorDTO, SectorHealth } from "@/lib/types";
+import type { ActionDTO, AttachmentDTO, OccurrenceDTO, PersonDTO, SectorDTO, SectorHealth } from "@/lib/types";
+import { EventRow } from "../../agenda/agenda-view";
 import { AttachmentUploader } from "@/components/attachments";
 import type { KpiSnapshot } from "@/lib/data";
 import { DemandForm, NeedForm, NoteForm, PersonForm, SectorForm, type DemandRow, type NeedRow } from "../sector-forms";
@@ -32,6 +33,7 @@ type Props = {
   notes: { id: string; content: string; createdAt: string }[];
   timeline: { id: string; summary: string; at: string }[];
   attachments: SectorAttachment[];
+  events: OccurrenceDTO[];
 };
 
 const digits = (s: string) => s.replace(/\D/g, "");
@@ -361,6 +363,22 @@ export function SectorView(p: Props) {
                   {addBtn("Nova", () => setForm({ kind: "demand" }))}
                 </PanelHead>
                 {demandRows(openDemands.slice(0, 4), false)}
+              </Card>
+              <Card>
+                <PanelHead title="Próximos compromissos" count={p.events.length}>
+                  <Link href="/agenda" className="text-[14px] font-semibold text-ac-text md:text-[13px]">
+                    Agenda
+                  </Link>
+                </PanelHead>
+                {p.events.length === 0 ? (
+                  <p className="px-4 py-5 text-[15px] text-fg-3">Nada marcado nos próximos 14 dias.</p>
+                ) : (
+                  <ul>
+                    {p.events.map((e) => (
+                      <EventRow key={e.key} e={e} showDate />
+                    ))}
+                  </ul>
+                )}
               </Card>
               <Card>
                 <PanelHead title="Linha do tempo" />

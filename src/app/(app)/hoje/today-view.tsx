@@ -2,27 +2,24 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, ArrowUpRight, CalendarCheck, ChevronRight, Inbox, Repeat, Search } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpRight, CalendarCheck, ChevronRight, Inbox, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useApp } from "@/components/app-provider";
 import { CheckButton, FollowUpLine } from "@/components/action-bits";
 import { Card, Dot, DueBadge, EmptyState, HealthLabel, PanelHead, SectionHead, SectorChip, SectorTile, Spark } from "@/components/ds";
-import { Icon } from "@/components/icon";
 import { Sheet } from "@/components/sheet";
 import { Button } from "@/components/button";
 import { setPriorities } from "@/app/actions/actions";
 import { formatExtenso, formatLong } from "@/lib/dates";
-import { EVENT_TYPE_ICON, EVENT_TYPE_LABEL } from "@/lib/labels";
 import { cn } from "@/lib/utils";
-import type { ActionDTO, SectorHealth } from "@/lib/types";
-import type { EventType } from "@/generated/prisma/enums";
+import type { ActionDTO, OccurrenceDTO, SectorHealth } from "@/lib/types";
+import { EventRow } from "../agenda/agenda-view";
 
-export type TodayEvent = { id: string; title: string; type: EventType; start: string; end: string; sectorId: string | null; recurring: boolean; past: boolean };
 
 type Props = {
   open: ActionDTO[];
   priorities: ActionDTO[];
-  events: TodayEvent[];
+  events: OccurrenceDTO[];
   now: string;
   health: SectorHealth[];
   inboxCount: number;
@@ -305,13 +302,12 @@ function PriorityRow({ a, n }: { a: ActionDTO; n?: number }) {
   );
 }
 
-function AgendaList({ events, now }: { events: TodayEvent[]; now: string }) {
-  const { sectorById } = useApp();
-  const nowIdx = events.findIndex((e) => e.start > now);
+function AgendaList({ events, now }: { events: OccurrenceDTO[]; now: string }) {
+  const nowIdx = events.findIndex((e) => !e.allDay && e.start > now);
   return (
     <ul>
       {events.map((e, i) => (
-        <li key={e.id}>
+        <div key={e.key}>
           {i === nowIdx && i > 0 && (
             <div className="relative z-[1] flex h-0 items-center gap-2 px-3.5 font-mono text-[12px] font-bold text-ac-text" aria-label={`Agora ${now}`}>
               <span className="size-2 rounded-full bg-ac" />
@@ -319,28 +315,8 @@ function AgendaList({ events, now }: { events: TodayEvent[]; now: string }) {
               <span className="h-0.5 flex-1 bg-ac" />
             </div>
           )}
-          <div className={cn("grid grid-cols-[58px_1fr] gap-2.5 border-t border-line px-3.5 py-3 md:grid-cols-[52px_1fr]", i === 0 && "border-t-0", e.past && "opacity-55")}>
-            <div className="font-mono text-[15px] font-semibold leading-tight md:text-[13px]">
-              {e.start}
-              <small className="block text-[13px] font-medium text-fg-3 md:text-[12px]">{e.end}</small>
-            </div>
-            <div className="min-w-0">
-              <div className="text-[16px] font-semibold leading-snug md:text-[14px]">{e.title}</div>
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                <SectorChip sector={sectorById(e.sectorId)} />
-                <span className="inline-flex items-center gap-1 text-[14px] text-fg-3 md:text-[13px] [&_svg]:size-3.5">
-                  <Icon name={EVENT_TYPE_ICON[e.type]} />
-                  {EVENT_TYPE_LABEL[e.type]}
-                </span>
-                {e.recurring && (
-                  <span className="inline-flex items-center gap-1 text-[14px] text-fg-3 md:text-[13px]">
-                    <Repeat className="size-3.5" /> recorrente
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        </li>
+          <EventRow e={e} past={!e.allDay && e.end <= now} />
+        </div>
       ))}
     </ul>
   );

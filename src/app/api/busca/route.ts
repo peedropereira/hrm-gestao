@@ -95,7 +95,7 @@ export async function GET(req: NextRequest) {
       sub: [p.role, p.sector?.name].filter(Boolean).join(" · ") || "Pessoa",
       href: p.sector ? `/setores/${p.sector.slug}?aba=pessoas` : "/config",
     })),
-    ...events.map((e) => ({ type: "event" as const, id: e.id, title: e.title, sub: e.startsAt.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }), href: "/agenda" })),
+    ...events.map((e) => ({ type: "event" as const, id: e.id, title: e.title, sub: e.startsAt.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }), href: `/agenda/evento/${e.id}` })),
     ...inbox.map((i) => ({ type: "inbox" as const, id: i.id, title: i.text, sub: "Aguardando triagem", href: "/caixa" })),
     ...fileHits,
   ];

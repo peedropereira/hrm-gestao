@@ -241,7 +241,7 @@ export function AttachmentUploader({
   showSource,
   empty,
 }: {
-  target: { kind: "sector" | "demand" | "need" | "note" | "inbox"; id: string };
+  target: { kind: "sector" | "demand" | "need" | "note" | "inbox" | "event"; id: string };
   items: AttachmentDTO[];
   onChanged?: () => void;
   showSource?: boolean;
@@ -279,7 +279,7 @@ export function AttachmentUploader({
 }
 
 /** Envia arquivos pendentes depois que o registro foi salvo (ex.: nova demanda). */
-export async function uploadAndAttach(target: { kind: "sector" | "demand" | "need" | "note" | "inbox"; id: string }, files: File[]) {
+export async function uploadAndAttach(target: { kind: "sector" | "demand" | "need" | "note" | "inbox" | "event"; id: string }, files: File[]) {
   if (!files.length) return true;
   try {
     const up = await uploadFiles(files);

@@ -33,6 +33,7 @@ export type ActionDTO = {
   kind: ActionKind;
   origin: ActionOrigin;
   originNote: string | null;
+  eventId: string | null; // compromisso (ata) que gerou a ação
   dueDate: string | null; // yyyy-mm-dd
   urgent: boolean;
   important: boolean;
@@ -44,6 +45,32 @@ export type ActionDTO = {
   subtasksDone: number;
   subtasksTotal: number;
   tags: string[];
+};
+
+export type OccurrenceDTO = {
+  key: string; // único na lista
+  eventId: string; // registro no banco (série, ocorrência editada ou evento avulso)
+  seriesId: string | null; // série à qual pertence
+  virtual: boolean; // ocorrência calculada da série (ainda sem registro próprio)
+  date: string; // yyyy-mm-dd
+  start: string; // HH:mm
+  end: string;
+  startsAt: string; // ISO
+  endsAt: string;
+  allDay: boolean;
+  title: string;
+  type: "MEETING" | "CLIENT_VISIT" | "TECH_VISIT" | "AUDIT" | "SECTOR_MEETING" | "PERSONAL_BLOCK" | "FOLLOW_UP";
+  location: string | null;
+  sectorId: string | null;
+  demandId: string | null;
+  linkedActionId: string | null;
+  attendees: string | null;
+  recurring: boolean;
+  ruleText: string;
+  hasMinutes: boolean;
+  actionsCount: number;
+  attachmentsCount: number;
+  href: string;
 };
 
 export type AttachmentDTO = {

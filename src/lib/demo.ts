@@ -237,16 +237,62 @@ export async function loadDemoData(db: DB, ownerId: string, today: string) {
     });
   }
 
-  // Compromissos de hoje (a Agenda completa chega na Fase 2)
-  const events = [
-    ["Reunião de produção", "SECTOR_MEETING", "08:00", "09:00", "producao", "FREQ=WEEKLY;BYDAY=MO"],
-    ["Teste hidrostático do VP-2210 com o cliente", "TECH_VISIT", "10:30", "12:00", "qualidade", null],
-    ["Auditoria interna ISO 9001: processo de solda", "AUDIT", "14:00", "15:30", "qualidade", null],
-    ["Follow-up da proposta do trocador", "FOLLOW_UP", "16:30", "17:00", "comercial", null],
+  // Agenda: séries recorrentes, compromissos da semana e uma ata já preenchida
+  const monday = addDaysISO(today, -((new Date(`${today}T12:00:00Z`).getUTCDay() + 6) % 7));
+  const friday = addDaysISO(monday, 4);
+  const wednesday = addDaysISO(monday, 2);
+  const prodSeries = await db.event.create({
+    data: {
+      ownerId, demo: true, title: "Reunião de produção", type: "SECTOR_MEETING",
+      startsAt: at(addDaysISO(monday, -21), "08:00"), endsAt: at(addDaysISO(monday, -21), "09:00"),
+      sectorId: S("producao"), location: "Sala de reuniões do galpão 1", attendees: "Anderson, Ricardo, Fernanda, Paulo",
+      rrule: "FREQ=WEEKLY;BYDAY=MO", exdates: [d(addDaysISO(monday, -7))!],
+    },
+  });
+  const lastWeek = await db.event.create({
+    data: {
+      ownerId, demo: true, title: "Reunião de produção", type: "SECTOR_MEETING",
+      startsAt: at(addDaysISO(monday, -7), "08:00"), endsAt: at(addDaysISO(monday, -7), "09:10"),
+      sectorId: S("producao"), location: "Sala de reuniões do galpão 1", attendees: "Anderson, Ricardo, Fernanda, Paulo",
+      parentId: prodSeries.id, occurrenceDate: d(addDaysISO(monday, -7)),
+      minutes: [
+        "Pauta: carga da semana, VP-2210, horas extras.",
+        "",
+        "VP-2210: trinca na solda C3 do costado. Teste hidrostático mantido para esta semana se o reparo for liberado.",
+        "Calandra continua gargalo; avaliar terceirização das virolas do TQ-08.",
+        "",
+        "✓ cobrar Fernanda liberar RNC-118 #qualidade",
+        "- Ricardo revisar sequenciamento da semana 41 sexta",
+        "- Anderson levantar necessidade de hora extra no sábado amanhã",
+      ].join("\n"),
+    },
+  });
+  await db.action.update({ where: { id: ids[0] }, data: { eventId: lastWeek.id, originNote: `Reunião de produção · ${addDaysISO(monday, -7).split("-").reverse().join("/")}` } });
+  await db.event.create({
+    data: {
+      ownerId, demo: true, title: "Reunião semanal da Qualidade", type: "SECTOR_MEETING",
+      startsAt: at(addDaysISO(wednesday, -14), "15:00"), endsAt: at(addDaysISO(wednesday, -14), "16:00"),
+      sectorId: S("qualidade"), attendees: "Fernanda, inspetores", rrule: "FREQ=WEEKLY;BYDAY=WE",
+    },
+  });
+  await db.event.create({
+    data: {
+      ownerId, demo: true, title: "Revisão semanal", type: "PERSONAL_BLOCK",
+      startsAt: at(addDaysISO(friday, -7), "16:00"), endsAt: at(addDaysISO(friday, -7), "17:00"),
+      rrule: "FREQ=WEEKLY;BYDAY=FR",
+    },
+  });
+  const singles = [
+    ["Teste hidrostático do VP-2210 com o cliente", "TECH_VISIT", 0, "10:30", "12:00", "qualidade", "Galpão 2 · área de testes"],
+    ["Auditoria interna ISO 9001: processo de solda", "AUDIT", 0, "14:00", "15:30", "qualidade", null],
+    ["Follow-up da proposta do trocador", "FOLLOW_UP", 0, "16:30", "17:00", "comercial", "Teams"],
+    ["Visita ao cliente Usina Santa Clara", "CLIENT_VISIT", 1, "09:00", "11:30", "comercial", "Piracicaba/SP"],
+    ["Alinhamento do cronograma da OS 4471", "MEETING", 2, "10:00", "11:00", "pcp", "Sala do PCP"],
+    ["Inspeção de segurança da montagem externa", "TECH_VISIT", 3, "08:30", "09:30", "sesmt", "Pátio externo"],
   ] as const;
-  for (const [title, type, s, e, sec, rrule] of events) {
+  for (const [title, type, day, s, e, sec, loc] of singles) {
     await db.event.create({
-      data: { ownerId, demo: true, title, type, startsAt: at(today, s), endsAt: at(today, e), sectorId: S(sec), rrule },
+      data: { ownerId, demo: true, title, type, startsAt: at(off(day), s), endsAt: at(off(day), e), sectorId: S(sec), location: loc },
     });
   }
 
@@ -290,6 +336,7 @@ export async function clearDemoData(db: DB, ownerId: string) {
     db.need.deleteMany({ where: { ownerId, demo: true } }),
     db.note.deleteMany({ where: { ownerId, demo: true } }),
     db.kpi.deleteMany({ where: { ownerId, demo: true } }),
+    db.event.deleteMany({ where: { ownerId, demo: true, parentId: { not: null } } }),
     db.event.deleteMany({ where: { ownerId, demo: true } }),
     db.inboxItem.deleteMany({ where: { ownerId, demo: true } }),
     db.activityLog.deleteMany({ where: { ownerId, demo: true } }),

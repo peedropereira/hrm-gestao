@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/session";
 import { db } from "@/lib/db";
 import { getKpiSnapshots, getOpenActions, getSectorHealth, getSectors } from "@/lib/data";
-import { dateOnlyToISO, formatDateTimeShort } from "@/lib/dates";
+import { addDaysISO, dateOnlyToISO, formatDateTimeShort, todayISO } from "@/lib/dates";
+import { getOccurrences } from "@/lib/agenda";
 import { SectorView } from "./sector-view";
 
 export async function generateMetadata({ params }: PageProps<"/setores/[slug]">): Promise<Metadata> {
@@ -21,7 +22,8 @@ export default async function SectorPage({ params, searchParams }: PageProps<"/s
   const ids = [sector.id, ...sectors.filter((s) => s.parentId === sector.id).map((s) => s.id)];
 
   const inSector = { sectorId: { in: ids }, deletedAt: null };
-  const [open, health, kpis, needs, demands, notes, activity, files] = await Promise.all([
+  const today = todayISO();
+  const [open, health, kpis, needs, demands, notes, activity, files, events] = await Promise.all([
     getOpenActions(user.id),
     getSectorHealth(user.id, user.id),
     getKpiSnapshots(user.id),
@@ -49,6 +51,7 @@ export default async function SectorPage({ params, searchParams }: PageProps<"/s
       orderBy: { createdAt: "desc" },
       take: 300,
     }),
+    getOccurrences(user.id, today, addDaysISO(today, 14), { sectorIds: ids }),
   ]);
   const short = (s: string) => (s.length > 48 ? `${s.slice(0, 46)}…` : s);
   const attachments = files.map((f) => ({
@@ -105,6 +108,7 @@ export default async function SectorPage({ params, searchParams }: PageProps<"/s
       }))}
       notes={notes.map((n) => ({ id: n.id, content: n.content, createdAt: formatDateTimeShort(n.createdAt) }))}
       attachments={attachments}
+      events={events.slice(0, 6)}
       timeline={activity.map((a) => ({ id: a.id, summary: a.summary, at: formatDateTimeShort(a.createdAt) }))}
     />
   );

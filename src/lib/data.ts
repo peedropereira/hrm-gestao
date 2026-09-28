@@ -24,6 +24,7 @@ export function toActionDTO(a: ActionRow): ActionDTO {
     kind: a.kind,
     origin: a.origin,
     originNote: a.originNote,
+    eventId: a.eventId,
     dueDate: dateOnlyToISO(a.dueDate),
     urgent: a.urgent,
     important: a.important,
