@@ -33,9 +33,10 @@ const ERRORS: Record<string, string> = {
 
 /**
  * `onText` recebe cada trecho reconhecido de forma definitiva.
+ * `onEnd` é chamado quando para de ouvir (sozinho, após uma pausa na fala, ou pelo botão).
  * `interim` é o que está sendo reconhecido agora (para mostrar ao vivo).
  */
-export function useSpeech(onText: (text: string) => void) {
+export function useSpeech(onText: (text: string) => void, onEnd?: (heard: boolean) => void) {
   const supported = useSyncExternalStore(
     () => () => {},
     () => !!getCtor(),
@@ -46,9 +47,12 @@ export function useSpeech(onText: (text: string) => void) {
   const [error, setError] = useState<string | null>(null);
   const rec = useRef<Recognition | null>(null);
   const cb = useRef(onText);
+  const endCb = useRef(onEnd);
+  const heard = useRef(false);
   useEffect(() => {
     cb.current = onText;
-  }, [onText]);
+    endCb.current = onEnd;
+  }, [onText, onEnd]);
 
   const stop = useCallback(() => {
     rec.current?.stop();
@@ -63,13 +67,21 @@ export function useSpeech(onText: (text: string) => void) {
     setError(null);
     const r = new Ctor();
     r.lang = "pt-BR";
-    r.continuous = true;
+    // Uma frase por vez: para sozinho quando a pessoa faz uma pausa (e evita repetições no Android).
+    r.continuous = false;
+    heard.current = false;
     r.interimResults = true;
     r.onresult = (e) => {
       let live = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const res = e.results[i];
-        if (res.isFinal) cb.current(res[0].transcript.trim());
+        if (res.isFinal) {
+          const t = res[0].transcript.trim();
+          if (t) {
+            heard.current = true;
+            cb.current(t);
+          }
+        }
         else live += res[0].transcript;
       }
       setInterim(live);
@@ -80,6 +92,7 @@ export function useSpeech(onText: (text: string) => void) {
     r.onend = () => {
       setListening(false);
       setInterim("");
+      endCb.current?.(heard.current);
     };
     rec.current = r;
     try {

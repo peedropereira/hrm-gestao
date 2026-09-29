@@ -33,6 +33,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         inboxCount,
         overdueCount: open.filter((a) => isOverdue(a, today)).length,
         delegateAlertDays: settings.delegateAlertDays,
+        reminderMinutes: settings.reminderMinutes,
+        ai: !!process.env.ANTHROPIC_API_KEY,
       }}
     >
       <div className="flex min-h-dvh">

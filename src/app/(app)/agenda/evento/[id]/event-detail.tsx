@@ -3,8 +3,9 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarDays, FileText, ListChecks, Loader2, MapPin, Pencil, Plus, Repeat, Sparkles, Trash2, Users } from "lucide-react";
+import { Bell, CalendarDays, CalendarPlus, FileText, ListChecks, Loader2, MapPin, Pencil, Plus, Repeat, Sparkles, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
+import { reminderLabel } from "@/lib/reminder-options";
 import { useApp } from "@/components/app-provider";
 import { Button } from "@/components/button";
 import { Card, DueBadge, PanelHead, PersonChip, SectorChip } from "@/components/ds";
@@ -38,6 +39,7 @@ export type EventDetailData = {
   demand: { id: string; title: string; sectorSlug: string } | null;
   linkedAction: { id: string; title: string } | null;
   attendees: string | null;
+  reminderMinutes: number | null;
   minutes: string | null;
   rrule: string | null;
   ruleText: string;
@@ -49,7 +51,8 @@ export type EventDetailData = {
 const ACTION_LINE = /^\s*(?:[-*•]|->|→|\[\s?\]|a[çc][ãa]o:)\s*(.+)$/i;
 
 export function EventDetail({ data: d, options }: { data: EventDetailData; options: EventOptions }) {
-  const { today, people, sectors, personById, sectorById } = useApp();
+  const { today, people, sectors, personById, sectorById, reminderMinutes } = useApp();
+  const lead = d.reminderMinutes ?? reminderMinutes;
   const router = useRouter();
   const [pending, start] = useTransition();
   const [minutes, setMinutes] = useState(d.minutes ?? "");
@@ -179,6 +182,12 @@ export function EventDetail({ data: d, options }: { data: EventDetailData; optio
               {d.ruleText}
             </li>
           )}
+          {!d.allDay && (
+            <li className="flex items-center gap-2.5">
+              <Bell className="size-[18px] shrink-0 text-fg-3" />
+              {lead < 0 ? "Sem aviso no celular" : `Aviso ${reminderLabel(lead).toLowerCase()}`}
+            </li>
+          )}
           {d.location && (
             <li className="flex items-center gap-2.5">
               <MapPin className="size-[18px] shrink-0 text-fg-3" />
@@ -213,6 +222,14 @@ export function EventDetail({ data: d, options }: { data: EventDetailData; optio
           <Button variant="secondary" size="sm" className="h-11 md:h-9" onClick={() => setEditScope(isSeriesItem ? "ask" : "single")}>
             <Pencil /> Editar
           </Button>
+          {!d.allDay && (
+            <a
+              href={`/api/agenda/ics/${d.seriesId && d.virtual ? d.seriesId : d.eventId}?d=${d.date}`}
+              className="inline-flex h-11 items-center gap-2 rounded-[10px] border border-line-strong bg-surface px-3 text-[15px] font-semibold hover:bg-surface-2 md:h-9 md:text-[14px] [&_svg]:size-[18px]"
+            >
+              <CalendarPlus /> Alarme no celular
+            </a>
+          )}
           <Button variant="quiet" size="sm" className="h-11 md:h-9" onClick={() => setDeleting(true)}>
             <Trash2 /> Excluir
           </Button>
@@ -404,6 +421,7 @@ export function EventDetail({ data: d, options }: { data: EventDetailData; optio
             demandId: d.demand?.id ?? null,
             linkedActionId: d.linkedAction?.id ?? null,
             attendees: d.attendees,
+            reminderMinutes: d.reminderMinutes,
             rrule: editScope === "series" ? d.rrule : null,
           }}
         />

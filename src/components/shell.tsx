@@ -195,7 +195,10 @@ export function GlobalEffects() {
       navigator.serviceWorker.register("/sw.js").catch(() => {});
     }
     // Atalho do ícone do app: "Capturar"
-    if (new URLSearchParams(location.search).get("capturar") === "1") openCapture();
+    const q = new URLSearchParams(location.search);
+    if (q.get("capturar") === "1") openCapture();
+    // Atalho do ícone do app: "Falar"
+    if (q.get("falar") === "1") openCapture("", { voice: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

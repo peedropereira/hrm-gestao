@@ -12,7 +12,9 @@ type Ctx = AppContextData & {
   sectorById: (id: string | null | undefined) => SectorDTO | undefined;
   personById: (id: string | null | undefined) => PersonDTO | undefined;
   captureOpen: boolean;
-  openCapture: (text?: string) => void;
+  openCapture: (text?: string, opts?: { voice?: boolean }) => void;
+  /** Abriu a captura para falar: o microfone começa a ouvir sozinho. */
+  captureVoice: boolean;
   closeCapture: () => void;
   captureSeed: string;
   searchOpen: boolean;
@@ -46,6 +48,7 @@ export function AppProvider({ data, children }: { data: AppContextData; children
   const [overlay, setOverlay] = useState<Record<string, Patch>>({});
   const [captureOpen, setCaptureOpen] = useState(false);
   const [captureSeed, setCaptureSeed] = useState("");
+  const [captureVoice, setCaptureVoice] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
   const sectorMap = useMemo(() => new Map(data.sectors.map((s) => [s.id, s])), [data.sectors]);
@@ -136,8 +139,10 @@ export function AppProvider({ data, children }: { data: AppContextData; children
     personById: (id) => (id ? personMap.get(id) : undefined),
     captureOpen,
     captureSeed,
-    openCapture: (text = "") => {
+    captureVoice,
+    openCapture: (text = "", opts) => {
       setCaptureSeed(text);
+      setCaptureVoice(!!opts?.voice);
       setCaptureOpen(true);
     },
     closeCapture: () => setCaptureOpen(false),

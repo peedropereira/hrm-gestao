@@ -63,6 +63,9 @@ export const getSettings = cache(async (userId: string) => {
       redOverdueMin: 2,
       kpiRedPercent: 10,
       delegateAlertDays: 3,
+      reminderMinutes: 30,
+      morningDigest: true,
+      calendarToken: null as string | null,
     }
   );
 });

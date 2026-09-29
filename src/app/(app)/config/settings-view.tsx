@@ -10,6 +10,7 @@ import { Sheet } from "@/components/sheet";
 import { changePassword, clearDemo, loadDemo, logoutAction, updateSettings } from "@/app/actions/account";
 import { Field, inputCls } from "../setores/sector-forms";
 import { cn } from "@/lib/utils";
+import { NotificationsCard, type NotificationProps } from "./notifications-card";
 
 /** Grava o tema no cookie (lido antes da pintura) e aplica na hora. */
 function persistTheme(v: string) {
@@ -32,7 +33,7 @@ function Section({ title, children, desc }: { title: string; desc?: string; chil
   );
 }
 
-export function SettingsView({ login, theme, hasDemo, settings }: { login: string; theme: string; hasDemo: boolean; settings: Settings }) {
+export function SettingsView({ login, theme, hasDemo, settings, notifications }: { login: string; theme: string; hasDemo: boolean; settings: Settings; notifications: NotificationProps }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
@@ -75,6 +76,10 @@ export function SettingsView({ login, theme, hasDemo, settings }: { login: strin
               </button>
             ))}
           </div>
+        </Section>
+
+        <Section title="Avisos e alarmes" desc="Lembretes das reuniões e compromissos no celular.">
+          <NotificationsCard {...notifications} />
         </Section>
 
         <Section title="Trocar senha" desc="Ao trocar, todos os aparelhos conectados precisam entrar de novo.">

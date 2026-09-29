@@ -66,6 +66,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/ag
     demand: e.demand ? { id: e.demand.id, title: e.demand.title, sectorSlug: e.demand.sector.slug } : null,
     linkedAction: e.linkedAction,
     attendees: e.attendees,
+    reminderMinutes: e.reminderMinutes,
     minutes: e.minutes,
     rrule: e.rrule ?? e.parent?.rrule ?? null,
     ruleText: describeRule(e.rrule ?? e.parent?.rrule),

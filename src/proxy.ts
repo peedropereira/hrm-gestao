@@ -5,7 +5,7 @@ import { authConfig } from "./auth.config";
 // Proxy: nenhuma página ou API abre sem login.
 const { auth } = NextAuth(authConfig);
 
-const PUBLIC = ["/login", "/api/auth", "/manifest.webmanifest", "/sw.js", "/offline", "/icons"];
+const PUBLIC = ["/login", "/api/auth", "/api/cron", "/api/agenda/feed", "/manifest.webmanifest", "/sw.js", "/offline", "/icons"];
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;

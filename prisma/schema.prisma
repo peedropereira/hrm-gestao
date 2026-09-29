@@ -32,6 +32,28 @@ model User {
 
   sectorAccess SectorAccess[]
   settings     UserSettings?
+  pushSubs     PushSubscription[]
+}
+
+// Aparelhos que recebem avisos (notificações do navegador/app instalado).
+model PushSubscription {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String    @unique
+  p256dh    String
+  auth      String
+  device    String? // descrição curta do aparelho
+  createdAt DateTime  @default(now())
+  lastOkAt  DateTime?
+
+  @@index([userId])
+}
+
+// Avisos já enviados (evita repetir o mesmo lembrete).
+model ReminderLog {
+  key    String   @id // ex.: "evento:<id>:<data>:<minutos>" ou "resumo:<usuario>:<data>"
+  sentAt DateTime @default(now())
 }
 
 // Futuro: líder de setor vê só os setores liberados aqui.
@@ -45,11 +67,14 @@ model SectorAccess {
 }
 
 model UserSettings {
-  userId            String @id
-  user              User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  redOverdueMin     Int    @default(2) // semáforo vermelho a partir de N atrasadas
-  kpiRedPercent     Int    @default(10) // meta mais de X% fora do alvo = vermelho
-  delegateAlertDays Int    @default(3) // dias úteis sem follow-up
+  userId            String  @id
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  redOverdueMin     Int     @default(2) // semáforo vermelho a partir de N atrasadas
+  kpiRedPercent     Int     @default(10) // meta mais de X% fora do alvo = vermelho
+  delegateAlertDays Int     @default(3) // dias úteis sem follow-up
+  reminderMinutes   Int     @default(30) // aviso padrão antes dos compromissos
+  morningDigest     Boolean @default(true) // resumo do dia no celular pela manhã
+  calendarToken     String? @unique // endereço secreto da agenda para o calendário do celular
 }
 
 model LoginAttempt {
@@ -452,35 +477,36 @@ enum EventType {
 }
 
 model Event {
-  id             String     @id @default(cuid())
-  ownerId        String
-  title          String
-  type           EventType  @default(MEETING)
-  startsAt       DateTime
-  endsAt         DateTime
-  allDay         Boolean    @default(false)
-  location       String?
-  sectorId       String?
-  sector         Sector?    @relation(fields: [sectorId], references: [id])
-  demandId       String?
-  demand         Demand?    @relation(fields: [demandId], references: [id])
-  linkedActionId String? // ação sobre a qual é o compromisso
-  linkedAction   Action?    @relation("EventLinkedAction", fields: [linkedActionId], references: [id])
-  attendees      String? // participantes (texto livre)
-  rrule          String? // recorrência no padrão iCalendar (RRULE)
-  exdates        DateTime[] @default([]) @db.Date // datas canceladas ou editadas à parte
-  parentId       String? // ocorrência editada à parte de uma série
-  parent         Event?     @relation("EventOccurrences", fields: [parentId], references: [id])
-  occurrences    Event[]    @relation("EventOccurrences")
-  occurrenceDate DateTime?  @db.Date // data original da ocorrência dentro da série
-  minutes        String? // ata
-  externalId     String? // futuro: Microsoft Graph
-  externalSource String?
-  etag           String?
-  demo           Boolean    @default(false)
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
-  deletedAt      DateTime?
+  id              String     @id @default(cuid())
+  ownerId         String
+  title           String
+  type            EventType  @default(MEETING)
+  startsAt        DateTime
+  endsAt          DateTime
+  allDay          Boolean    @default(false)
+  location        String?
+  sectorId        String?
+  sector          Sector?    @relation(fields: [sectorId], references: [id])
+  demandId        String?
+  demand          Demand?    @relation(fields: [demandId], references: [id])
+  linkedActionId  String? // ação sobre a qual é o compromisso
+  linkedAction    Action?    @relation("EventLinkedAction", fields: [linkedActionId], references: [id])
+  attendees       String? // participantes (texto livre)
+  rrule           String? // recorrência no padrão iCalendar (RRULE)
+  exdates         DateTime[] @default([]) @db.Date // datas canceladas ou editadas à parte
+  parentId        String? // ocorrência editada à parte de uma série
+  parent          Event?     @relation("EventOccurrences", fields: [parentId], references: [id])
+  occurrences     Event[]    @relation("EventOccurrences")
+  occurrenceDate  DateTime?  @db.Date // data original da ocorrência dentro da série
+  minutes         String? // ata
+  reminderMinutes Int? // aviso antes (null = padrão das configurações, -1 = sem aviso)
+  externalId      String? // futuro: Microsoft Graph
+  externalSource  String?
+  etag            String?
+  demo            Boolean    @default(false)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  deletedAt       DateTime?
 
   actions     Action[]
   attachments Attachment[]

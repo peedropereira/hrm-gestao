@@ -37,6 +37,7 @@ const eventSelect = {
   parentId: true,
   occurrenceDate: true,
   minutes: true,
+  reminderMinutes: true,
   parent: { select: { rrule: true } },
   _count: { select: { actions: { where: { deletedAt: null } }, attachments: true } },
 } as const;
@@ -73,6 +74,7 @@ export async function getOccurrences(ownerId: string, from: string, to: string, 
       demandId: e.demandId,
       linkedActionId: e.linkedActionId,
       attendees: e.attendees,
+      reminderMinutes: e.reminderMinutes,
       hasMinutes: !!e.minutes?.trim(),
     };
     if (e.rrule) {

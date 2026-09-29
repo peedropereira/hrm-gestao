@@ -9,6 +9,7 @@ import { Button } from "@/components/button";
 import { Icon } from "@/components/icon";
 import { useApp } from "@/components/app-provider";
 import { saveEvent } from "@/app/actions/events";
+import { REMINDER_CHOICES, reminderLabel } from "@/lib/reminder-options";
 import { EVENT_TYPE_ICON, EVENT_TYPE_LABEL } from "@/lib/labels";
 import { parseRule, WEEKDAY_SHORT } from "@/lib/recurrence";
 import { weekdayOf } from "@/lib/dates";
@@ -33,6 +34,7 @@ export type EventFormInitial = Partial<{
   linkedActionId: string | null;
   attendees: string | null;
   rrule: string | null;
+  reminderMinutes: number | null;
 }>;
 
 type Repeat = "NONE" | "WORKDAYS" | "WEEKLY" | "BIWEEKLY" | "MONTHLY" | "DAILY";
@@ -71,7 +73,7 @@ export function EventForm({
   options: EventOptions;
   title?: string;
 }) {
-  const { today, sectors } = useApp();
+  const { today, sectors, reminderMinutes } = useApp();
   const router = useRouter();
   const [pending, start] = useTransition();
   const rep = repeatFromRule(initial?.rrule);
@@ -87,6 +89,7 @@ export function EventForm({
     demandId: initial?.demandId ?? "",
     linkedActionId: initial?.linkedActionId ?? "",
     attendees: initial?.attendees ?? "",
+    reminder: initial?.reminderMinutes == null ? "" : String(initial.reminderMinutes),
     repeat: rep.repeat,
     byDay: rep.byDay,
     until: rep.until,
@@ -126,6 +129,7 @@ export function EventForm({
           demandId: f.demandId || null,
           linkedActionId: f.linkedActionId || null,
           attendees: f.attendees,
+          reminderMinutes: f.reminder === "" ? null : Number(f.reminder),
           recurrence: showRepeat ? recurrence : { freq: "NONE" },
         },
         target,
@@ -315,6 +319,21 @@ export function EventForm({
           </label>
           <input id="ev-att" className={field} value={f.attendees} onChange={(e) => set("attendees", e.target.value)} placeholder="ex.: Anderson, Ricardo, Fernanda" />
         </div>
+        {!f.allDay && (
+          <div className="grid gap-1.5">
+            <label htmlFor="ev-rem" className={lbl}>
+              Aviso no celular
+            </label>
+            <select id="ev-rem" className={field} value={f.reminder} onChange={(e) => set("reminder", e.target.value)}>
+              <option value="">Padrão ({reminderLabel(reminderMinutes).toLowerCase()})</option>
+              {REMINDER_CHOICES.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <Button type="submit" block disabled={pending}>
           {pending && <Loader2 className="animate-spin" />}
           {target ? "Salvar alterações" : "Agendar"}

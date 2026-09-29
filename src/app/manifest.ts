@@ -20,6 +20,7 @@ export default function manifest(): MetadataRoute.Manifest {
     ],
     shortcuts: [
       { name: "Capturar", url: "/hoje?capturar=1" },
+      { name: "Falar", url: "/hoje?falar=1" },
       { name: "Ações atrasadas", url: "/acoes?f=atrasadas" },
       { name: "Caixa de entrada", url: "/caixa" },
     ],

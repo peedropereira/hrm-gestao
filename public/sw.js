@@ -2,7 +2,7 @@
 // - Arquivos estáticos do Next: cache primeiro (são versionados).
 // - Páginas e dados: rede primeiro; sem sinal, mostra a última versão carregada.
 // - API nunca é guardada em cache.
-const VERSION = "gps-v2";
+const VERSION = "gps-v3";
 const STATIC = `${VERSION}-static`;
 const PAGES = `${VERSION}-pages`;
 const OFFLINE_URL = "/offline";
@@ -65,5 +65,45 @@ self.addEventListener("fetch", (event) => {
         if (req.mode === "navigate") return (await caches.match(OFFLINE_URL)) || Response.error();
         return Response.error();
       }),
+  );
+});
+
+// Avisos (Web Push): lembrete de compromisso, resumo do dia e teste.
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { title: "Gestão PS", body: event.data ? event.data.text() : "" };
+  }
+  const title = data.title || "Gestão PS";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: data.body || "",
+      tag: data.tag || undefined,
+      renotify: !!data.tag,
+      requireInteraction: !!data.alarm,
+      vibrate: data.alarm ? [300, 120, 300, 120, 600] : [120],
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      data: { url: data.url || "/hoje" },
+      actions: [{ action: "abrir", title: "Abrir" }],
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = new URL((event.notification.data && event.notification.data.url) || "/hoje", self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      for (const c of list) {
+        if (c.url.startsWith(self.location.origin) && "focus" in c) {
+          c.navigate(url).catch(() => {});
+          return c.focus();
+        }
+      }
+      return self.clients.openWindow(url);
+    }),
   );
 });

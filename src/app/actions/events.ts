@@ -33,6 +33,7 @@ const eventInput = z
     demandId: id.nullish(),
     linkedActionId: id.nullish(),
     attendees: z.string().trim().max(1000).nullish(),
+    reminderMinutes: z.number().int().min(-1).max(10080).nullish(),
     recurrence: recurrenceInput.default({ freq: "NONE", interval: 1, byDay: [] }),
   })
   .refine((d) => d.allDay || d.end > d.start, { message: "O fim precisa ser depois do início.", path: ["end"] });
@@ -73,6 +74,7 @@ function fields(d: EventInput) {
     demandId: d.demandId || null,
     linkedActionId: d.linkedActionId || null,
     attendees: d.attendees || null,
+    reminderMinutes: d.reminderMinutes ?? null,
   };
 }
 
@@ -101,6 +103,7 @@ async function materialize(ownerId: string, seriesId: string, date: string) {
       demandId: s.demandId,
       linkedActionId: s.linkedActionId,
       attendees: s.attendees,
+      reminderMinutes: s.reminderMinutes,
       startsAt,
       endsAt: new Date(startsAt.getTime() + dur),
       parentId: s.id,

@@ -66,6 +66,7 @@ export type OccurrenceDTO = {
   demandId: string | null;
   linkedActionId: string | null;
   attendees: string | null;
+  reminderMinutes: number | null; // null = padrão das configurações
   recurring: boolean;
   ruleText: string;
   hasMinutes: boolean;
@@ -114,4 +115,6 @@ export type AppContextData = {
   inboxCount: number;
   overdueCount: number;
   delegateAlertDays: number;
+  reminderMinutes: number; // aviso padrão antes dos compromissos
+  ai: boolean; // interpretação por IA disponível na captura
 };
