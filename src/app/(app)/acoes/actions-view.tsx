@@ -18,6 +18,7 @@ const FILTERS = [
   ["hoje", "Hoje"],
   ["atrasadas", "Atrasadas"],
   ["delegadas", "Delegadas"],
+  ["pessoal", "Pessoal"],
   ["setor", "Por setor"],
   ["concluidas", "Concluídas"],
 ] as const;
@@ -38,6 +39,7 @@ function useWide() {
 type Group = { key: string; title: string; items: ActionDTO[]; tone?: "red" };
 
 const EMPTY: Record<string, [string, string]> = {
+  pessoal: ["Nada pessoal pendente", "Use #pessoal na captura ou escolha o setor Pessoal."],
   hoje: ["Nada vence hoje", "Bom momento para revisar as delegadas."],
   atrasadas: ["Nenhuma ação atrasada 👏", "Toque em + para capturar algo novo."],
   delegadas: ["Ninguém te devendo retorno", "Ações delegadas e cobranças aparecem aqui."],
@@ -47,7 +49,8 @@ const EMPTY: Record<string, [string, string]> = {
 };
 
 export function ActionsView({ open, recentDone, filter, view, selected }: { open: ActionDTO[]; recentDone: ActionDTO[]; filter: string; view: string; selected?: string }) {
-  const { today, applyOverlay, sectorById, openCapture, setSearchOpen } = useApp();
+  const { today, applyOverlay, sectorById, openCapture, setSearchOpen, sectors } = useApp();
+  const personalIds = new Set(sectors.filter((x) => x.personal).map((x) => x.id));
   const router = useRouter();
   const wide = useWide();
   const path = usePathname();
@@ -58,8 +61,9 @@ export function ActionsView({ open, recentDone, filter, view, selected }: { open
   const overdue = openNow.filter((a) => a.dueDate && a.dueDate < today);
   const dueToday = openNow.filter((a) => a.dueDate === today);
   const delegated = openNow.filter((a) => a.assigneeId);
+  const personalOpen = openNow.filter((a) => a.sectorId && personalIds.has(a.sectorId));
 
-  const counts: Record<string, number> = { todas: openNow.length, hoje: dueToday.length, atrasadas: overdue.length, delegadas: delegated.length };
+  const counts: Record<string, number> = { todas: openNow.length, hoje: dueToday.length, atrasadas: overdue.length, delegadas: delegated.length, pessoal: personalOpen.length };
 
   const groups: Group[] = useMemo(() => {
     const later = openNow.filter((a) => !a.dueDate || a.dueDate > today);
@@ -82,6 +86,11 @@ export function ActionsView({ open, recentDone, filter, view, selected }: { open
           .sort((a, b) => b[1].length - a[1].length)
           .map(([k, items]) => ({ key: k, title: k === "_" ? "Sem setor" : (sectorById(k)?.shortName || sectorById(k)?.name || "Setor"), items }));
       }
+      case "pessoal":
+        return [
+          { key: "pa", title: "Pessoal · atrasadas", items: personalOpen.filter((a) => a.dueDate && a.dueDate < today), tone: "red" as const },
+          { key: "pp", title: "Pessoal", items: personalOpen.filter((a) => !a.dueDate || a.dueDate >= today) },
+        ];
       case "concluidas":
         return [{ key: "c", title: "Concluídas nos últimos 14 dias", items: all.filter((a) => a.status === "DONE") }];
       default:

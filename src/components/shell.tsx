@@ -14,6 +14,7 @@ import {
   Settings,
   Sun,
   TrendingUp,
+  User,
   WifiOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -27,17 +28,19 @@ const NAV = [
   { href: "/caixa", label: "Caixa de entrada", icon: Inbox, count: "inbox" as const },
   { href: "/acoes", label: "Ações", icon: ListChecks, count: "overdue" as const },
   { href: "/agenda", label: "Agenda", icon: Calendar },
+  { href: "/setores/pessoal", label: "Pessoal", icon: User },
   { href: "/setores", label: "Setores", icon: LayoutGrid },
   { href: "/revisao", label: "Revisão semanal", icon: CalendarCheck },
   { href: "/relatorios", label: "Relatórios", icon: TrendingUp },
 ];
 
-const isActive = (path: string, href: string) => path === href || path.startsWith(`${href}/`);
+const isActive = (path: string, href: string) =>
+  path === href || (path.startsWith(`${href}/`) && !(href === "/setores" && path.startsWith("/setores/pessoal")));
 
 export function Sidebar({ health }: { health: Record<string, Health> }) {
   const path = usePathname();
   const { inboxCount, overdueCount, sectors, userName, setSearchOpen, openCapture } = useApp();
-  const top = sectors.filter((s) => !s.parentId && s.active);
+  const top = sectors.filter((s) => !s.parentId && s.active && !s.personal);
   return (
     <aside className="sticky top-0 hidden h-dvh w-[236px] shrink-0 flex-col border-r border-line bg-side px-2.5 pt-3.5 md:flex">
       <Link href="/hoje" className="flex items-center gap-2.5 px-2 pb-3.5">

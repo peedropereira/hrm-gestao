@@ -43,7 +43,7 @@ export const getSectors = cache(async (ownerId: string): Promise<SectorDTO[]> =>
   const rows = await db.sector.findMany({
     where: { ownerId, deletedAt: null },
     orderBy: [{ order: "asc" }, { name: "asc" }],
-    select: { id: true, name: true, shortName: true, slug: true, color: true, icon: true, parentId: true, order: true, active: true },
+    select: { id: true, name: true, shortName: true, slug: true, color: true, icon: true, parentId: true, order: true, active: true, personal: true },
   });
   return rows;
 });
@@ -169,7 +169,7 @@ export async function getSectorHealth(ownerId: string, userId: string): Promise<
   for (const s of sectors) rootOf.set(s.id, s.parentId ?? s.id);
 
   return sectors
-    .filter((s) => !s.parentId && s.active)
+    .filter((s) => !s.parentId && s.active && !s.personal)
     .map((s) => {
       const mine = actions.filter((a) => a.sectorId && rootOf.get(a.sectorId) === s.id);
       const overdue = mine.filter((a) => isOverdue(a, today)).length;

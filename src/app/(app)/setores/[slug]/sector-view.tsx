@@ -71,7 +71,7 @@ export function SectorView(p: Props) {
   const monthly = pendingNeeds.filter((n) => n.recurring).reduce((t, n) => t + (n.estimatedCost ?? 0), 0);
   const openDemands = p.demands.filter((d) => d.status === "OPEN" || d.status === "IN_PROGRESS");
 
-  const tabs = [
+  const allTabs = [
     ["resumo", "Resumo", null],
     ["acoes", "Ações", actions.length],
     ["metas", "Metas", p.kpis.length],
@@ -81,6 +81,8 @@ export function SectorView(p: Props) {
     ["arquivos", "Arquivos", p.attachments.length],
     ["pessoas", "Pessoas", team.length],
   ] as const;
+  // No Pessoal não fazem sentido metas, necessidades, demandas e equipe da fábrica.
+  const tabs = s.personal ? allTabs.filter(([k]) => ["resumo", "acoes", "notas", "arquivos"].includes(k)) : allTabs;
 
   const setTab = (t: string) => router.replace(t === "resumo" ? path : `${path}?aba=${t}`, { scroll: false });
 
@@ -263,7 +265,10 @@ export function SectorView(p: Props) {
             {subs.length > 0 && <p className="mt-0.5 text-[14px] text-fg-3">Subsetores: {subs.map((x) => x.name).join(", ")}</p>}
           </div>
         </div>
-        {/* Líder */}
+        {/* Líder (não se aplica ao Pessoal) */}
+        {s.personal ? (
+          <p className="px-5 text-[15px] text-fg-3 md:ml-auto md:px-0 md:text-[14px]">Seus assuntos fora da fábrica: casa, família, saúde, finanças.</p>
+        ) : (
         <div className="mx-4 grid gap-3 rounded-[14px] border border-line bg-surface p-3.5 shadow-card md:mx-0 md:ml-auto md:flex md:items-center md:gap-3 md:rounded-none md:border-0 md:border-l md:p-0 md:pl-5 md:shadow-none">
           {leader ? (
             <>
@@ -296,6 +301,7 @@ export function SectorView(p: Props) {
             </Button>
           )}
         </div>
+        )}
       </header>
 
       {/* Abas */}
@@ -327,7 +333,7 @@ export function SectorView(p: Props) {
         {p.tab === "resumo" && (
           <div className="grid gap-5 md:gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
             <div className="grid min-w-0 content-start gap-5 md:gap-4 [&>*]:min-w-0">
-              <Card>
+              <Card className={s.personal ? "hidden" : undefined}>
                 <PanelHead title="Metas" count={p.kpis.length}>
                   <button type="button" onClick={() => setTab("metas")} className="text-[14px] font-semibold text-ac-text md:text-[13px]">
                     Ver todas
@@ -343,7 +349,7 @@ export function SectorView(p: Props) {
               </Card>
             </div>
             <div className="grid min-w-0 content-start gap-5 md:gap-4 [&>*]:min-w-0">
-              <Card>
+              <Card className={s.personal ? "hidden" : undefined}>
                 <PanelHead title="Necessidades pendentes" count={pendingNeeds.length}>
                   {addBtn("Nova", () => setForm({ kind: "need" }))}
                 </PanelHead>
@@ -358,7 +364,7 @@ export function SectorView(p: Props) {
                   </div>
                 )}
               </Card>
-              <Card>
+              <Card className={s.personal ? "hidden" : undefined}>
                 <PanelHead title="Demandas abertas" count={openDemands.length}>
                   {addBtn("Nova", () => setForm({ kind: "demand" }))}
                 </PanelHead>

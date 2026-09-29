@@ -11,6 +11,7 @@ export type SectorDTO = {
   parentId: string | null;
   order: number;
   active: boolean;
+  personal: boolean;
 };
 
 export type PersonDTO = {

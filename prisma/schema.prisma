@@ -78,6 +78,7 @@ model Sector {
   children  Sector[]  @relation("SubSectors")
   order     Int       @default(0)
   active    Boolean   @default(true)
+  personal  Boolean   @default(false) // setor Pessoal (fora do semáforo da empresa)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?

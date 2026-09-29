@@ -43,6 +43,9 @@ export async function ensureInitialSectors(db: DB, ownerId: string) {
     });
     if (s.slug === "producao") producaoId = row.id;
   }
+  await db.sector.create({
+    data: { ownerId, slug: "pessoal", name: "Pessoal", icon: "user", color: "#475569", order: -1, personal: true },
+  });
   for (const s of PRODUCTION_SUBSECTORS) {
     await db.sector.create({
       data: { ownerId, slug: s.slug, name: s.name, icon: s.icon, color: "#F97316", parentId: producaoId, order: order++ },

@@ -26,6 +26,9 @@ import {
   Truck,
   Users,
   Wrench,
+  User,
+  Heart,
+  House,
   type LucideIcon,
 } from "lucide-react";
 
@@ -51,6 +54,9 @@ export const SECTOR_ICONS: Record<string, LucideIcon> = {
   construction: Construction,
   building: Building2,
   gauge: Gauge,
+  user: User,
+  heart: Heart,
+  house: House,
 };
 
 const OTHER: Record<string, LucideIcon> = {

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireUser } from "@/lib/session";
-import { getPeople, getSectorHealth, getSectors } from "@/lib/data";
+import { getOpenActions, getPeople, getSectorHealth, getSectors } from "@/lib/data";
 import { Card, HealthLabel, SectorTile } from "@/components/ds";
 import { NewSectorButton } from "./sector-forms";
 
@@ -9,11 +9,13 @@ export const metadata: Metadata = { title: "Setores" };
 
 export default async function SectorsPage() {
   const user = await requireUser();
-  const [sectors, health, people] = await Promise.all([getSectors(user.id), getSectorHealth(user.id, user.id), getPeople(user.id)]);
+  const [sectors, health, people, open] = await Promise.all([getSectors(user.id), getSectorHealth(user.id, user.id), getPeople(user.id), getOpenActions(user.id)]);
+  const personal = sectors.find((s) => s.personal);
+  const personalOpen = personal ? open.filter((a) => a.sectorId === personal.id).length : 0;
   const hmap = new Map(health.map((h) => [h.sectorId, h]));
   const order = { red: 0, amber: 1, green: 2 } as const;
   const top = sectors
-    .filter((s) => !s.parentId && s.active)
+    .filter((s) => !s.parentId && s.active && !s.personal)
     .sort((a, b) => order[hmap.get(a.id)?.status ?? "green"] - order[hmap.get(b.id)?.status ?? "green"] || a.order - b.order);
 
   return (
@@ -28,6 +30,22 @@ export default async function SectorsPage() {
         </div>
         <NewSectorButton />
       </header>
+      {personal && (
+        <div className="px-4 pb-3 md:px-7">
+          <Link href={`/setores/${personal.slug}`} className="block">
+            <Card className="flex items-center gap-3 p-3.5 transition-colors hover:border-line-strong">
+              <SectorTile sector={personal} size={44} />
+              <div className="min-w-0 flex-1">
+                <b className="text-[17px] font-semibold leading-tight md:text-[15px]">Pessoal</b>
+                <p className="mt-0.5 text-[14px] text-fg-2 md:text-[13px]">
+                  Seus assuntos fora da fábrica · {personalOpen} {personalOpen === 1 ? "ação aberta" : "ações abertas"}
+                </p>
+              </div>
+            </Card>
+          </Link>
+          <h2 className="mt-5 px-1 text-[13px] font-bold uppercase tracking-[0.06em] text-fg-3">Setores da empresa</h2>
+        </div>
+      )}
       <div className="grid gap-2.5 px-4 md:grid-cols-2 md:gap-3 md:px-7 lg:grid-cols-3">
         {top.map((s) => {
           const h = hmap.get(s.id);
