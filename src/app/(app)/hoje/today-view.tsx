@@ -14,6 +14,8 @@ import { formatExtenso, formatLong } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import type { ActionDTO, OccurrenceDTO, SectorHealth } from "@/lib/types";
 import { EventRow } from "../agenda/agenda-view";
+import { KpiRow } from "@/components/kpi-bits";
+import type { KpiSnapshot } from "@/lib/data";
 
 
 type Props = {
@@ -25,6 +27,8 @@ type Props = {
   inboxCount: number;
   overdueTrend: number[];
   doneTrend: number[];
+  kpis: KpiSnapshot[]; // metas fora do alvo, piores primeiro
+  kpiTotal: number;
 };
 
 function greetingNow() {
@@ -273,6 +277,38 @@ export function TodayView(p: Props) {
               </div>
             </Card>
           </section>
+
+          {/* Metas fora do alvo */}
+          {p.kpiTotal > 0 && (
+            <section className="px-4 pt-6 md:p-0">
+              <div className="md:hidden">
+                <SectionHead title="Metas">
+                  <Link href="/metas" className="tap flex items-center gap-1 text-[15px] font-semibold text-ac-text">
+                    Todas <ChevronRight className="size-4" />
+                  </Link>
+                </SectionHead>
+              </div>
+              <Card>
+                <div className="hidden md:block">
+                  <PanelHead title="Metas fora do alvo" count={p.kpis.length}>
+                    <Link href="/metas" className="text-[13px] font-semibold text-ac-text">
+                      Todas
+                    </Link>
+                  </PanelHead>
+                </div>
+                {p.kpis.length === 0 ? (
+                  <p className="px-4 py-4 text-[15px] text-fg-2 md:text-[14px]">Todas as {p.kpiTotal} metas estão no alvo.</p>
+                ) : (
+                  p.kpis.slice(0, 4).map((k) => <KpiRow key={k.id} k={k} showSector />)
+                )}
+                {p.kpis.length > 4 && (
+                  <Link href="/metas?f=fora" className="block border-t border-line px-4 py-3 text-[14px] font-semibold text-ac-text">
+                    Ver mais {p.kpis.length - 4}
+                  </Link>
+                )}
+              </Card>
+            </section>
+          )}
         </div>
       </div>
 

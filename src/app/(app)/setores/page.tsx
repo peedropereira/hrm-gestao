@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireUser } from "@/lib/session";
-import { getOpenActions, getPeople, getSectorHealth, getSectors } from "@/lib/data";
+import { getKpiSnapshots, getOpenActions, getPeople, getSectorHealth, getSectors } from "@/lib/data";
+import { Target } from "lucide-react";
 import { Card, HealthLabel, SectorTile } from "@/components/ds";
 import { NewSectorButton } from "./sector-forms";
 
@@ -9,7 +10,8 @@ export const metadata: Metadata = { title: "Setores" };
 
 export default async function SectorsPage() {
   const user = await requireUser();
-  const [sectors, health, people, open] = await Promise.all([getSectors(user.id), getSectorHealth(user.id, user.id), getPeople(user.id), getOpenActions(user.id)]);
+  const [sectors, health, people, open, kpis] = await Promise.all([getSectors(user.id), getSectorHealth(user.id, user.id), getPeople(user.id), getOpenActions(user.id), getKpiSnapshots(user.id)]);
+  const kpiOff = kpis.filter((k) => k.offPct > 0).length;
   const personal = sectors.find((s) => s.personal);
   const personalOpen = personal ? open.filter((a) => a.sectorId === personal.id).length : 0;
   const hmap = new Map(health.map((h) => [h.sectorId, h]));
@@ -39,6 +41,19 @@ export default async function SectorsPage() {
                 <b className="text-[17px] font-semibold leading-tight md:text-[15px]">Pessoal</b>
                 <p className="mt-0.5 text-[14px] text-fg-2 md:text-[13px]">
                   Seus assuntos fora da fábrica · {personalOpen} {personalOpen === 1 ? "ação aberta" : "ações abertas"}
+                </p>
+              </div>
+            </Card>
+          </Link>
+          <Link href="/metas" className="mt-2.5 block md:hidden">
+            <Card className="flex items-center gap-3 p-3.5 transition-colors hover:border-line-strong">
+              <span className="grid size-11 place-items-center rounded-[12px] bg-ac-soft text-ac-text">
+                <Target className="size-6" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <b className="text-[17px] font-semibold leading-tight">Metas</b>
+                <p className="mt-0.5 text-[14px] text-fg-2">
+                  {kpis.length} indicadores · {kpiOff} fora do alvo
                 </p>
               </div>
             </Card>

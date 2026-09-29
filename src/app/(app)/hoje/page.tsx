@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { requireUser } from "@/lib/session";
 import { db } from "@/lib/db";
 import { addDaysISO, dateOnlyToISO, isoToDateOnly, nowTimeSP, todayISO } from "@/lib/dates";
-import { getActionsByIds, getInboxCount, getOpenActions, getRecentDone, getSectorHealth } from "@/lib/data";
+import { getActionsByIds, getInboxCount, getKpiSnapshots, getOpenActions, getRecentDone, getSectorHealth } from "@/lib/data";
 import { TodayView } from "./today-view";
 import { getOccurrences } from "@/lib/agenda";
 
@@ -45,7 +45,7 @@ export default async function TodayPage() {
   const user = await requireUser();
   const today = todayISO();
 
-  const [open, doneToday, prioRows, events, health, inbox, trend, dTrend] = await Promise.all([
+  const [open, doneToday, prioRows, events, health, inbox, trend, dTrend, kpis] = await Promise.all([
     getOpenActions(user.id),
     getRecentDone(user.id, today),
     db.dailyPriority.findMany({ where: { ownerId: user.id, date: isoToDateOnly(today)! }, orderBy: { position: "asc" } }),
@@ -54,6 +54,7 @@ export default async function TodayPage() {
     getInboxCount(user.id),
     overdueTrend(user.id, today),
     doneTrend(user.id, today),
+    getKpiSnapshots(user.id),
   ]);
 
   const prioIds = prioRows.map((p) => p.actionId);
@@ -74,6 +75,8 @@ export default async function TodayPage() {
       inboxCount={inbox}
       overdueTrend={trend}
       doneTrend={dTrend}
+      kpis={kpis.filter((k) => k.offPct > 0).sort((a, b) => b.offPct - a.offPct)}
+      kpiTotal={kpis.length}
     />
   );
 }

@@ -13,6 +13,7 @@ import {
   Search,
   Settings,
   Sun,
+  Target,
   TrendingUp,
   User,
   WifiOff,
@@ -30,6 +31,7 @@ const NAV = [
   { href: "/agenda", label: "Agenda", icon: Calendar },
   { href: "/setores/pessoal", label: "Pessoal", icon: User },
   { href: "/setores", label: "Setores", icon: LayoutGrid },
+  { href: "/metas", label: "Metas", icon: Target },
   { href: "/revisao", label: "Revisão semanal", icon: CalendarCheck },
   { href: "/relatorios", label: "Relatórios", icon: TrendingUp },
 ];

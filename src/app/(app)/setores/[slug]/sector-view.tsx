@@ -7,7 +7,7 @@ import { ChevronLeft, MessageCircle, Paperclip, Pencil, Phone, Plus, Trash2, Use
 import { toast } from "sonner";
 import { useApp } from "@/components/app-provider";
 import { CheckButton, FollowUpLine, SwipeCard } from "@/components/action-bits";
-import { Badge, Card, DueBadge, EmptyState, HealthLabel, KindLabel, PanelHead, PersonChip, SectorTile, Spark, initials } from "@/components/ds";
+import { Badge, Card, DueBadge, EmptyState, HealthLabel, KindLabel, PanelHead, PersonChip, SectorTile, initials } from "@/components/ds";
 import { Button } from "@/components/button";
 import { deleteDemand, deleteNeed, deleteNote, deletePerson } from "@/app/actions/sectors";
 import { formatBR, formatShort } from "@/lib/dates";
@@ -17,6 +17,7 @@ import type { ActionDTO, AttachmentDTO, OccurrenceDTO, PersonDTO, SectorDTO, Sec
 import { EventRow } from "../../agenda/agenda-view";
 import { AttachmentUploader } from "@/components/attachments";
 import type { KpiSnapshot } from "@/lib/data";
+import { KpiForm, KpiRow } from "@/components/kpi-bits";
 import { DemandForm, NeedForm, NoteForm, PersonForm, SectorForm, type DemandRow, type NeedRow } from "../sector-forms";
 
 export type SectorAttachment = AttachmentDTO & { demandId: string | null; needId: string | null; noteId: string | null };
@@ -42,22 +43,13 @@ const waLink = (s: string) => {
   return `https://wa.me/${d.length <= 11 ? `55${d}` : d}`;
 };
 
-function kpiStatus(k: KpiSnapshot, redPct = 10): "red" | "amber" | "green" {
-  if (k.offPct > redPct) return "red";
-  if (k.offPct > 0) return "amber";
-  return "green";
-}
-const KPI_COLOR = { red: "var(--red-solid)", amber: "var(--amber-solid)", green: "var(--green-solid)" };
-const KPI_TEXT = { red: "text-red", amber: "text-amber", green: "text-green" };
-const fmtVal = (v: number | null, unit: string) =>
-  v === null ? "—" : unit === "R$" ? formatBRL(v).replace(",00", "") : v.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
-const unitSuffix = (u: string) => (u === "R$" ? "" : u === "%" ? "%" : ` ${u}`);
 
 export function SectorView(p: Props) {
   const { people, sectors, today, applyOverlay, openCapture } = useApp();
   const router = useRouter();
   const path = usePathname();
   const [editSector, setEditSector] = useState(false);
+  const [newKpi, setNewKpi] = useState(false);
   const [form, setForm] = useState<null | { kind: "need"; row?: NeedRow } | { kind: "demand"; row?: DemandRow } | { kind: "note"; row?: { id: string; content: string } } | { kind: "person"; row?: PersonDTO }>(null);
 
   const s = p.sector;
@@ -97,31 +89,13 @@ export function SectorView(p: Props) {
   // ---- blocos reutilizados ----
   const kpiBlock = (limit?: number) =>
     p.kpis.length === 0 ? (
-      <p className="px-4 py-5 text-[15px] text-fg-3">Nenhuma meta cadastrada. O cadastro e lançamento de metas chega na Fase 3.</p>
+      <p className="px-4 py-5 text-[15px] text-fg-3">Nenhuma meta cadastrada neste setor.</p>
     ) : (
-      <ul>
-        {p.kpis.slice(0, limit).map((k) => {
-          const st = kpiStatus(k);
-          const alvo = k.direction === "LOWER_BETTER" ? "≤" : "≥";
-          return (
-            <li key={k.id} className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-0.5 border-t border-line px-3.5 py-3 first:border-t-0 md:px-4">
-              <span className="text-[15px] font-medium text-fg-2 md:text-[13px]">{k.name}</span>
-              <Spark values={k.series} color={KPI_COLOR[st]} width={96} height={40} className="row-span-3" />
-              <span className={cn("text-[28px] font-bold leading-tight tracking-[-0.03em] md:text-[24px]", KPI_TEXT[st])}>
-                {fmtVal(k.value, k.unit)}
-                <small className="ml-0.5 text-[15px] font-semibold tracking-normal text-fg-3">{unitSuffix(k.unit)}</small>
-              </span>
-              <span className="flex flex-wrap items-center gap-2 text-[14px] text-fg-3 md:text-[12px]">
-                meta {alvo} {fmtVal(k.target, k.unit)}
-                {unitSuffix(k.unit)}
-                <HealthLabel status={st} className="text-[13px]">
-                  {st === "red" ? "Fora do alvo" : st === "amber" ? "Perto do limite" : "No alvo"}
-                </HealthLabel>
-              </span>
-            </li>
-          );
-        })}
-      </ul>
+      <div>
+        {p.kpis.slice(0, limit).map((k) => (
+          <KpiRow key={k.id} k={k} />
+        ))}
+      </div>
     );
 
   const actionRows = (list: ActionDTO[]) =>
@@ -414,7 +388,12 @@ export function SectorView(p: Props) {
         {p.tab === "metas" && (
           <Card>
             <PanelHead title="Metas e indicadores" count={p.kpis.length}>
-              <span className="text-[13px] text-fg-3">Lançamento mensal e gráficos completos na Fase 3</span>
+              <span className="flex gap-3">
+                <Link href="/metas/lancar" className="text-[14px] font-semibold text-ac-text md:text-[13px]">
+                  Lançar mês
+                </Link>
+                {addBtn("Nova meta", () => setNewKpi(true))}
+              </span>
             </PanelHead>
             {kpiBlock()}
           </Card>
@@ -541,6 +520,7 @@ export function SectorView(p: Props) {
       </div>
 
       {editSector && <SectorForm sector={s} open={editSector} onClose={() => setEditSector(false)} />}
+      {newKpi && <KpiForm open onClose={() => setNewKpi(false)} sectorId={s.id} />}
       {form?.kind === "need" && <NeedForm need={form.row} sectorId={s.id} files={form.row ? p.attachments.filter((a) => a.needId === form.row!.id) : []} open onClose={() => setForm(null)} />}
       {form?.kind === "demand" && <DemandForm demand={form.row} sectorId={s.id} files={form.row ? p.attachments.filter((a) => a.demandId === form.row!.id) : []} open onClose={() => setForm(null)} />}
       {form?.kind === "note" && <NoteForm note={form.row} sectorId={s.id} files={form.row ? p.attachments.filter((a) => a.noteId === form.row!.id) : []} open onClose={() => setForm(null)} />}

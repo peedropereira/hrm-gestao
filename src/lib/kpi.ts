@@ -104,3 +104,17 @@ export function launchMonth(today: string) {
   const day = Number(today.slice(8, 10));
   return day >= 25 ? monthOf(today) : addMonths(monthOf(today), -1);
 }
+
+/** Lê número digitado no padrão brasileiro: "1.234,5", "95", "1,5". Vazio = null; inválido = NaN. */
+export function parseNumBR(s: string): number | null {
+  const t = s.trim().replace(/\s|R\$|%/g, "");
+  if (!t) return null;
+  const norm = t.includes(",") ? t.replace(/\./g, "").replace(",", ".") : /^\d{1,3}(\.\d{3})+$/.test(t) ? t.replace(/\./g, "") : t;
+  return Number(norm);
+}
+
+/** Número para colocar num campo de edição ("1234,5"). */
+export function toInputBR(v: number | null | undefined) {
+  if (v === null || v === undefined) return "";
+  return String(v).replace(".", ",");
+}
