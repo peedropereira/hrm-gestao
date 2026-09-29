@@ -1,4 +1,5 @@
 import "server-only";
+import { offPercent } from "@/lib/kpi";
 import { cache } from "react";
 import { db } from "@/lib/db";
 import { businessDaysBetween, dateOnlyToISO, diffDays, todayISO } from "@/lib/dates";
@@ -25,6 +26,7 @@ export function toActionDTO(a: ActionRow): ActionDTO {
     origin: a.origin,
     originNote: a.originNote,
     eventId: a.eventId,
+    kpiId: a.kpiId,
     dueDate: dateOnlyToISO(a.dueDate),
     urgent: a.urgent,
     important: a.important,
@@ -115,11 +117,14 @@ export const getInboxCount = cache(async (ownerId: string) =>
   db.inboxItem.count({ where: { ownerId, status: "PENDING" } }),
 );
 
-/** Último valor de cada meta, para o semáforo e para as páginas de setor. */
+/** Último valor de cada meta, para o semáforo, as páginas de setor e a página de metas. */
 export async function getKpiSnapshots(ownerId: string, sectorId?: string) {
   const kpis = await db.kpi.findMany({
     where: { ownerId, deletedAt: null, active: true, ...(sectorId ? { sectorId } : {}) },
-    include: { entries: { orderBy: { month: "desc" }, take: 12 } },
+    include: {
+      entries: { orderBy: { month: "desc" }, take: 24 },
+      _count: { select: { actions: { where: { deletedAt: null, status: { in: [...OPEN_STATUSES] } } } } },
+    },
     orderBy: { name: "asc" },
   });
   return kpis.map((k) => {
@@ -127,13 +132,6 @@ export async function getKpiSnapshots(ownerId: string, sectorId?: string) {
     const last = entries.at(-1);
     const target = Number(last?.target ?? k.target);
     const value = last ? Number(last.value) : null;
-    let offPct = 0;
-    if (value !== null && target !== 0) {
-      if (k.direction === "LOWER_BETTER" && value > target) offPct = ((value - target) / Math.abs(target)) * 100;
-      if (k.direction === "HIGHER_BETTER" && value < target) offPct = ((target - value) / Math.abs(target)) * 100;
-    } else if (value !== null && target === 0 && k.direction === "LOWER_BETTER" && value > 0) {
-      offPct = 100;
-    }
     return {
       id: k.id,
       sectorId: k.sectorId,
@@ -141,12 +139,15 @@ export async function getKpiSnapshots(ownerId: string, sectorId?: string) {
       unit: k.unit,
       direction: k.direction,
       target,
+      baseTarget: Number(k.target),
       source: k.source,
       value,
       month: last ? dateOnlyToISO(last.month) : null,
-      offPct,
+      offPct: offPercent(value, target, k.direction),
       series: entries.map((e) => Number(e.value)),
-      months: entries.map((e) => dateOnlyToISO(e.month)!),
+      targets: entries.map((e) => Number(e.target ?? k.target)),
+      months: entries.map((e) => dateOnlyToISO(e.month)!.slice(0, 7)),
+      openActions: k._count.actions,
     };
   });
 }

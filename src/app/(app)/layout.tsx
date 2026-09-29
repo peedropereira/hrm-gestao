@@ -35,6 +35,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         delegateAlertDays: settings.delegateAlertDays,
         reminderMinutes: settings.reminderMinutes,
         ai: !!process.env.ANTHROPIC_API_KEY,
+        kpiRedPercent: settings.kpiRedPercent,
       }}
     >
       <div className="flex min-h-dvh">

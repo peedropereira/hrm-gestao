@@ -182,6 +182,8 @@ model Action {
   demand         Demand?      @relation(fields: [demandId], references: [id])
   eventId        String?
   event          Event?       @relation(fields: [eventId], references: [id])
+  kpiId          String? // meta que originou a ação
+  kpi            Kpi?         @relation(fields: [kpiId], references: [id])
   assigneeId     String? // vazio = eu mesmo
   assignee       Person?      @relation(fields: [assigneeId], references: [id])
   kind           ActionKind   @default(DO)
@@ -205,6 +207,7 @@ model Action {
 
   @@index([ownerId, status, dueDate])
   @@index([sectorId, status])
+  @@index([kpiId])
 }
 
 model Subtask {
@@ -258,6 +261,8 @@ model Attachment {
   pathname    String
   mimeType    String
   size        Int
+  durationSec Int? // áudio: duração da gravação
+  transcript  String? // áudio: texto transcrito
   createdAt   DateTime      @default(now())
 
   @@index([ownerId, createdAt])
@@ -453,6 +458,7 @@ model Kpi {
   deletedAt DateTime?
 
   entries KpiEntry[]
+  actions Action[]
 }
 
 model KpiEntry {
@@ -499,6 +505,7 @@ model Event {
   occurrences     Event[]    @relation("EventOccurrences")
   occurrenceDate  DateTime?  @db.Date // data original da ocorrência dentro da série
   minutes         String? // ata
+  transcript      String? // transcrição da gravação da reunião
   reminderMinutes Int? // aviso antes (null = padrão das configurações, -1 = sem aviso)
   externalId      String? // futuro: Microsoft Graph
   externalSource  String?

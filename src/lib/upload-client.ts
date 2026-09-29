@@ -1,7 +1,7 @@
 "use client";
 
 import { upload } from "@vercel/blob/client";
-import { MAX_UPLOAD_BYTES, formatBytes, type UploadedFile } from "./upload-rules";
+import { formatBytes, maxBytesFor, type UploadedFile } from "./upload-rules";
 
 /** Reduz a foto no aparelho antes de enviar (lado maior 2000 px, JPEG 82%). */
 export async function compressImage(file: File): Promise<File> {
@@ -53,7 +53,8 @@ export async function uploadFiles(files: File[], onProgress?: (i: number, total:
   for (const [i, original] of files.entries()) {
     const displayName = friendlyName(original);
     const file = await compressImage(original);
-    if (file.size > MAX_UPLOAD_BYTES) throw new Error(`“${displayName}” tem ${formatBytes(file.size)}. O limite é 25 MB por arquivo.`);
+    const limit = maxBytesFor(file.type);
+    if (file.size > limit) throw new Error(`“${displayName}” tem ${formatBytes(file.size)}. O limite é ${formatBytes(limit)} por arquivo.`);
     const contentType = file.type || "application/octet-stream";
     const blob = await upload(`anexos/${Date.now()}-${safeName(displayName)}`, file, {
       access: "public",

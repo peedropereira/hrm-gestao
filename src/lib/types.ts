@@ -35,6 +35,7 @@ export type ActionDTO = {
   origin: ActionOrigin;
   originNote: string | null;
   eventId: string | null; // compromisso (ata) que gerou a ação
+  kpiId: string | null; // meta que originou a ação
   dueDate: string | null; // yyyy-mm-dd
   urgent: boolean;
   important: boolean;
@@ -83,6 +84,7 @@ export type AttachmentDTO = {
   size: number;
   createdAt: string;
   source?: string; // de onde veio: "Ação: …", "Demanda: …"
+  durationSec?: number | null; // áudio
 };
 
 export type ActionExtra = {
@@ -117,4 +119,5 @@ export type AppContextData = {
   delegateAlertDays: number;
   reminderMinutes: number; // aviso padrão antes dos compromissos
   ai: boolean; // interpretação por IA disponível na captura
+  kpiRedPercent: number; // meta mais que X% fora do alvo = vermelho
 };

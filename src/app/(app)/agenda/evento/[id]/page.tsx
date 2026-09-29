@@ -9,9 +9,13 @@ import { localTime } from "@/lib/agenda";
 import { getEventOptions } from "@/lib/event-options";
 import { dateOnlyToISO, isoToDateOnly, todayISO } from "@/lib/dates";
 import { describeRule, expandDates } from "@/lib/recurrence";
+import { aiConfig } from "@/lib/ai";
+import { isAudio } from "@/lib/upload-rules";
 import { EventDetail, type EventDetailData } from "./event-detail";
 
 export const metadata: Metadata = { title: "Compromisso" };
+// transcrição e redação da ata podem levar alguns segundos
+export const maxDuration = 60;
 
 export default async function EventPage({ params, searchParams }: PageProps<"/agenda/evento/[id]">) {
   const user = await requireUser();
@@ -70,7 +74,12 @@ export default async function EventPage({ params, searchParams }: PageProps<"/ag
     minutes: e.minutes,
     rrule: e.rrule ?? e.parent?.rrule ?? null,
     ruleText: describeRule(e.rrule ?? e.parent?.rrule),
-    attachments: e.attachments.map((a) => ({ id: a.id, url: a.url, name: a.name, mimeType: a.mimeType, size: a.size, createdAt: a.createdAt.toISOString() })),
+    attachments: e.attachments.map((a) => ({ id: a.id, url: a.url, name: a.name, mimeType: a.mimeType, size: a.size, createdAt: a.createdAt.toISOString(), durationSec: a.durationSec })),
+    recording: {
+      ai: aiConfig(),
+      transcript: e.transcript,
+      parts: e.attachments.filter((a) => isAudio(a.mimeType, a.name)).map((a) => ({ id: a.id, transcribed: !!a.transcript, durationSec: a.durationSec })),
+    },
     actions: actions.sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
   };
 

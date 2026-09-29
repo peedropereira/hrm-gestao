@@ -7,6 +7,7 @@ import { Bell, CalendarDays, CalendarPlus, FileText, ListChecks, Loader2, MapPin
 import { toast } from "sonner";
 import { reminderLabel } from "@/lib/reminder-options";
 import { useApp } from "@/components/app-provider";
+import { MeetingRecorder, type RecorderProps } from "./meeting-recorder";
 import { Button } from "@/components/button";
 import { Card, DueBadge, PanelHead, PersonChip, SectorChip } from "@/components/ds";
 import { Icon } from "@/components/icon";
@@ -45,6 +46,7 @@ export type EventDetailData = {
   ruleText: string;
   attachments: AttachmentDTO[];
   actions: ActionDTO[];
+  recording: Pick<RecorderProps, "ai" | "parts" | "transcript">;
 };
 
 /** Linhas da ata que viram ação: começam com "-", "*", "•", "->", "[ ]" ou "Ação:". */
@@ -235,6 +237,19 @@ export function EventDetail({ data: d, options }: { data: EventDetailData; optio
           </Button>
         </div>
       </header>
+
+      {/* Gravação */}
+      <MeetingRecorder
+        eventId={d.eventId}
+        virtual={d.virtual}
+        date={d.date}
+        title={d.title}
+        {...d.recording}
+        onMinutes={(text) => {
+          setMinutes(text);
+          setDirty(false);
+        }}
+      />
 
       {/* Ata */}
       <Card>

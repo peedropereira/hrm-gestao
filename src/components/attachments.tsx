@@ -9,6 +9,7 @@ import {
   FileArchive,
   FileImage,
   FileSpreadsheet,
+  FileAudio,
   FileText,
   Loader2,
   Paperclip,
@@ -21,13 +22,14 @@ import { toast } from "sonner";
 import { Button } from "@/components/button";
 import { attachFiles, removeAttachment, restoreAttachment } from "@/app/actions/attachments";
 import { uploadFiles } from "@/lib/upload-client";
-import { FILE_ACCEPT, fileKind, formatBytes, isImage } from "@/lib/upload-rules";
+import { FILE_ACCEPT, fileKind, formatBytes, formatDuration, isAudio, isImage } from "@/lib/upload-rules";
 import { formatDateTimeShort } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import type { AttachmentDTO } from "@/lib/types";
 
 const KIND_ICON = {
   Foto: FileImage,
+  "Áudio": FileAudio,
   PDF: FileText,
   Word: FileText,
   Planilha: FileSpreadsheet,
@@ -172,14 +174,15 @@ export function AttachmentList({
             const kind = fileKind(d.mimeType, d.name);
             const Icon = KIND_ICON[kind as keyof typeof KIND_ICON] ?? FileIcon;
             return (
-              <li key={d.id} className="flex items-center gap-3 border-t border-line bg-surface px-3 py-2 first:border-t-0">
+              <li key={d.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line bg-surface px-3 py-2 first:border-t-0">
                 <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-ac-soft text-ac-text">
                   <Icon className="size-5" />
                 </span>
                 <a href={d.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 py-1">
                   <span className="block truncate text-[15px] font-medium md:text-[14px]">{d.name ?? kind}</span>
                   <span className="block truncate text-[13px] text-fg-3">
-                    {kind} · {formatBytes(d.size)} · {formatDateTimeShort(new Date(d.createdAt))}
+                    {kind} · {d.durationSec ? `${formatDuration(d.durationSec)} · ` : ""}
+                    {formatBytes(d.size)} · {formatDateTimeShort(new Date(d.createdAt))}
                     {showSource && d.source ? ` · ${d.source}` : ""}
                   </span>
                 </a>
@@ -191,6 +194,7 @@ export function AttachmentList({
                     <Trash2 className="size-4" />
                   </button>
                 )}
+                {isAudio(d.mimeType, d.name) && <audio controls preload="none" src={d.url} className="h-10 w-full basis-full" aria-label={`Ouvir ${d.name ?? "áudio"}`} />}
               </li>
             );
           })}

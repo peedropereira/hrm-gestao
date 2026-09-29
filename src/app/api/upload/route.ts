@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { auth } from "@/auth";
-import { MAX_UPLOAD_BYTES, UPLOAD_CONTENT_TYPES } from "@/lib/upload-rules";
+import { MAX_AUDIO_BYTES, UPLOAD_CONTENT_TYPES } from "@/lib/upload-rules";
 
 // Gera a autorização para o aparelho enviar o arquivo direto ao Vercel Blob
 // (sem passar pelo limite de 4,5 MB das funções da Vercel).
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
         if (!pathname.startsWith("anexos/")) throw new Error("Caminho de arquivo inválido.");
         return {
           allowedContentTypes: UPLOAD_CONTENT_TYPES,
-          maximumSizeInBytes: MAX_UPLOAD_BYTES,
+          maximumSizeInBytes: MAX_AUDIO_BYTES, // o aparelho aplica o limite menor para os demais tipos
           addRandomSuffix: true,
           tokenPayload: ownerId,
         };
