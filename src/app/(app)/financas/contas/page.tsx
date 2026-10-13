@@ -13,5 +13,6 @@ export default async function ContasPage() {
   const cardTx = cardIds.length
     ? (await db.finTransaction.findMany({ where: { ownerId: user.id, deletedAt: null, accountId: { in: cardIds }, kind: { not: "TRANSFER" }, paid: false }, orderBy: { date: "desc" } })).map(toTxDTO)
     : [];
-  return <ContasView accounts={accounts} invoices={invoices} cardTx={cardTx} />;
+  const awaiting = (await db.finTransaction.findMany({ where: { ownerId: user.id, deletedAt: null, cardPending: true }, orderBy: { date: "asc" }, take: 100 })).map(toTxDTO);
+  return <ContasView accounts={accounts} invoices={invoices} cardTx={cardTx} awaiting={awaiting} />;
 }

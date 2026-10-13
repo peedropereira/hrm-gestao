@@ -43,6 +43,7 @@ export type FinTxDTO = {
   installmentTotal: number | null;
   installmentGroup: string | null;
   invoiceMonth: string | null; // yyyy-mm
+  cardPending: boolean; // cobrado em cartão, aguardando a fatura
   notes: string | null;
 };
 
@@ -58,6 +59,7 @@ export type FinRecurringDTO = {
   endMonth: string | null;
   variable: boolean;
   autoPaid: boolean;
+  onCard: boolean; // cobrado no cartão (paga só com a fatura)
   notes: string | null;
   active: boolean;
 };

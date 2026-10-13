@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Archive, CreditCard, Landmark, Loader2, Pencil, Plus, Wallet } from "lucide-react";
+import { Archive, CreditCard, FileUp, Landmark, Loader2, Pencil, Plus, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { useApp } from "@/components/app-provider";
 import { Card, PanelHead } from "@/components/ds";
 import { Button } from "@/components/button";
 import { Sheet } from "@/components/sheet";
 import { AccountSelect, TxRow } from "@/components/fin/fin-ui";
+import { InvoiceImport } from "@/components/fin/invoice-import";
 import { archiveAccount, payInvoice, saveAccount } from "@/app/actions/finance";
 import { formatShort } from "@/lib/dates";
 import { ACCOUNT_TYPE_LABEL, brl, monthName, moneyInput, parseMoney, type FinAccountDTO, type FinAccountType, type FinInvoiceDTO, type FinTxDTO } from "@/lib/fin-types";
@@ -18,10 +19,11 @@ const inputCls =
 const lbl = "text-[15px] font-semibold md:text-[13px]";
 const COLORS = ["#0e6e7e", "#7c3aed", "#ea580c", "#16a34a", "#2563eb", "#db2777", "#475569", "#ca8a04"];
 
-export function ContasView({ accounts, invoices, cardTx }: { accounts: FinAccountDTO[]; invoices: FinInvoiceDTO[]; cardTx: FinTxDTO[] }) {
+export function ContasView({ accounts, invoices, cardTx, awaiting }: { accounts: FinAccountDTO[]; invoices: FinInvoiceDTO[]; cardTx: FinTxDTO[]; awaiting: FinTxDTO[] }) {
   const { today } = useApp();
   const [form, setForm] = useState<Partial<FinAccountDTO> | null>(null);
   const [paying, setPaying] = useState<FinInvoiceDTO | null>(null);
+  const [importing, setImporting] = useState<FinAccountDTO | null | undefined>(undefined);
   const [showArchived, setShowArchived] = useState(false);
   const live = accounts.filter((a) => !a.archived);
   const banks = live.filter((a) => a.type !== "CREDIT_CARD");
@@ -35,6 +37,9 @@ export function ContasView({ accounts, invoices, cardTx }: { accounts: FinAccoun
           Saldo total: <b className={cn("text-[18px] tabular-nums", total < 0 ? "text-red" : "text-fg")}>{brl(total)}</b>
         </p>
         <div className="flex gap-2">
+          <Button variant="secondary" size="sm" className="h-11 md:h-9" onClick={() => setImporting(null)}>
+            <FileUp /> Importar fatura (PDF)
+          </Button>
           <Button variant="secondary" size="sm" className="h-11 md:h-9" onClick={() => setForm({ type: "CREDIT_CARD" })}>
             <CreditCard /> Novo cartão
           </Button>
@@ -108,12 +113,22 @@ export function ContasView({ accounts, invoices, cardTx }: { accounts: FinAccoun
                       {current.dueDate < today ? "venceu" : "vence"} {formatShort(current.dueDate)}
                     </span>
                   </span>
-                  <Button size="sm" className="h-11 md:h-9" onClick={() => setPaying(current)}>
-                    Pagar fatura
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="secondary" size="sm" className="h-11 md:h-9" onClick={() => setImporting(c)}>
+                      <FileUp /> PDF
+                    </Button>
+                    <Button size="sm" className="h-11 md:h-9" onClick={() => setPaying(current)}>
+                      Pagar fatura
+                    </Button>
+                  </div>
                 </div>
               ) : (
-                <p className="text-[15px] text-fg-3">Nenhuma fatura em aberto.</p>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-[15px] text-fg-3">Nenhuma fatura em aberto.</p>
+                  <Button variant="secondary" size="sm" className="h-11 md:h-9" onClick={() => setImporting(c)}>
+                    <FileUp /> Importar fatura (PDF)
+                  </Button>
+                </div>
               )}
               {open.length > 1 && (
                 <p className="text-[13px] text-fg-3">
@@ -159,6 +174,23 @@ export function ContasView({ accounts, invoices, cardTx }: { accounts: FinAccoun
         </div>
       )}
 
+      {awaiting.length > 0 && (
+        <Card>
+          <PanelHead title="No cartão, aguardando a fatura" count={awaiting.length}>
+            <span className="text-[14px] font-semibold tabular-nums md:text-[13px]">{brl(awaiting.reduce((t, x) => t + x.amount, 0))}</span>
+          </PanelHead>
+          <p className="border-b border-line px-4 py-2.5 text-[13px] text-fg-3">
+            Fixos e gastos cobrados em cartão. Ao importar a fatura, eles são reconhecidos e abatidos nela; são pagos junto com a fatura inteira.
+          </p>
+          <ul>
+            {awaiting.map((t) => (
+              <TxRow key={t.id} t={t} />
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      {importing !== undefined && <InvoiceImport card={importing ?? undefined} onClose={() => setImporting(undefined)} />}
       {form && <AccForm key={form.id ?? form.type} initial={form} onClose={() => setForm(null)} />}
       {paying && <PaySheet invoice={paying} card={accounts.find((a) => a.id === paying.accountId)!} onClose={() => setPaying(null)} />}
     </div>

@@ -197,3 +197,16 @@ export function parseFixedList(text: string, categories: FinCategoryDTO[]): Fixe
   }
   return out;
 }
+
+/** Categoria provável pela descrição (dicas de palavras, depois nome da categoria). */
+export function guessCategory(description: string, categories: FinCategoryDTO[], kind: "EXPENSE" | "INCOME" = "EXPENSE") {
+  const pool = categories.filter((c) => !c.archived && c.kind === kind);
+  const n = norm(description);
+  for (const [re, name] of CATEGORY_HINTS) {
+    if (re.test(n)) {
+      const c = pool.find((x) => x.name === name);
+      if (c) return c.id;
+    }
+  }
+  return pool.find((x) => norm(x.name).split(/[\s/]+/).some((w) => w.length > 3 && new RegExp(`\\b${w}\\b`).test(n)))?.id ?? null;
+}

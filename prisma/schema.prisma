@@ -595,6 +595,7 @@ model FinRecurring {
   endMonth    DateTime?    @db.Date // último mês (inclusive), ex.: fim de financiamento
   variable    Boolean      @default(false) // valor muda todo mês (luz, água)
   autoPaid    Boolean      @default(false) // débito automático: já nasce pago
+  onCard      Boolean      @default(false) // cobrado no cartão: só é pago junto com a fatura
   notes       String?
   active      Boolean      @default(true)
   createdAt   DateTime     @default(now())
@@ -626,6 +627,7 @@ model FinTransaction {
   installmentNo    Int?
   installmentTotal Int?
   invoiceMonth     DateTime?     @db.Date // cartão: mês da fatura
+  cardPending      Boolean       @default(false) // cobrado em cartão ainda não identificado: entra na fatura quando ela for lançada
   notes            String?
   createdAt        DateTime      @default(now())
   deletedAt        DateTime?

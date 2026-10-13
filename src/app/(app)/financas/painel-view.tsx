@@ -38,7 +38,7 @@ export function PainelView({ month, txs, open, history, accounts, invoices }: Pr
   const income = txs.filter((t) => t.kind === "INCOME");
   const expense = txs.filter((t) => t.kind === "EXPENSE");
   const sum = (l: FinTxDTO[]) => l.reduce((t, x) => t + x.amount, 0);
-  const isCard = (t: FinTxDTO) => accById(t.accountId)?.type === "CREDIT_CARD";
+  const isCard = (t: FinTxDTO) => t.cardPending || accById(t.accountId)?.type === "CREDIT_CARD";
   const totalIn = sum(income);
   const totalOut = sum(expense);
   const received = sum(income.filter((t) => t.paid));

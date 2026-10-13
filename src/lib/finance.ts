@@ -49,14 +49,16 @@ export async function ensureRecurring(ownerId: string, months: string[]) {
       if (m < start || (end && m > end)) continue;
       const date = dayInMonth(m, r.dayOfMonth);
       const card = r.account?.type === "CREDIT_CARD";
+      const pendingCard = !card && r.onCard;
       data.push({
         ownerId,
         kind: r.kind,
         description: r.description,
         amount: r.amount,
         date: isoDate(date),
-        paid: r.autoPaid && date <= today,
-        paidAt: r.autoPaid && date <= today ? isoDate(date) : null,
+        paid: !card && !pendingCard && r.autoPaid && date <= today,
+        paidAt: !card && !pendingCard && r.autoPaid && date <= today ? isoDate(date) : null,
+        cardPending: pendingCard,
         categoryId: r.categoryId,
         accountId: r.accountId,
         recurringId: r.id,
@@ -87,6 +89,7 @@ export function toTxDTO(t: TxRow): FinTxDTO {
     installmentTotal: t.installmentTotal,
     installmentGroup: t.installmentGroup,
     invoiceMonth: t.invoiceMonth ? dateOnlyToISO(t.invoiceMonth)!.slice(0, 7) : null,
+    cardPending: t.cardPending,
     notes: t.notes,
   };
 }
@@ -110,6 +113,7 @@ export async function getRecurring(ownerId: string): Promise<FinRecurringDTO[]> 
     endMonth: r.endMonth ? dateOnlyToISO(r.endMonth)!.slice(0, 7) : null,
     variable: r.variable,
     autoPaid: r.autoPaid,
+    onCard: r.onCard,
     notes: r.notes,
     active: r.active,
   }));
@@ -204,6 +208,7 @@ export async function getOpenItems(ownerId: string, month: string) {
       ownerId,
       deletedAt: null,
       paid: false,
+      cardPending: false,
       kind: { in: ["EXPENSE", "INCOME"] },
       date: { lt: monthDate(addMonth(month, 1)) },
       OR: [{ accountId: null }, { account: { type: { not: "CREDIT_CARD" } } }],
@@ -217,7 +222,7 @@ export async function getOpenItems(ownerId: string, month: string) {
 /** Para o resumo da manhã: contas que vencem hoje e atrasadas. */
 export async function billsSummary(ownerId: string, today: string) {
   const rows = await db.finTransaction.findMany({
-    where: { ownerId, deletedAt: null, paid: false, kind: "EXPENSE", date: { lte: isoDate(today) }, OR: [{ accountId: null }, { account: { type: { not: "CREDIT_CARD" } } }] },
+    where: { ownerId, deletedAt: null, paid: false, cardPending: false, kind: "EXPENSE", date: { lte: isoDate(today) }, OR: [{ accountId: null }, { account: { type: { not: "CREDIT_CARD" } } }] },
     select: { amount: true, date: true, description: true },
   });
   const due = rows.filter((r) => dateOnlyToISO(r.date) === today);

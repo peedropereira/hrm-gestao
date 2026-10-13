@@ -199,7 +199,7 @@ export function TxRow({ t, showDate = true }: { t: FinTxDTO; showDate?: boolean 
   const [paid, setPaidLocal] = useState(t.paid);
   const cat = catById(t.categoryId);
   const acc = accById(t.accountId);
-  const isCard = acc?.type === "CREDIT_CARD";
+  const isCard = acc?.type === "CREDIT_CARD" || t.cardPending;
   const late = !paid && !isCard && t.kind !== "TRANSFER" && t.date < today;
   const toggle = () => {
     const next = !paid;
@@ -242,7 +242,12 @@ export function TxRow({ t, showDate = true }: { t: FinTxDTO; showDate?: boolean 
             {paid ? (t.kind === "INCOME" ? "Recebido" : "Pago") : t.kind === "INCOME" ? "Receber" : "Pagar"}
           </button>
         )}
-        {isCard && <span className="block text-[12px] text-fg-3">cartão</span>}
+        {isCard && (
+          <span className="mt-0.5 inline-flex h-6 items-center gap-1 rounded-full bg-surface-2 px-2 text-[11px] font-semibold text-fg-2" title="Pago junto com a fatura do cartão">
+            <CreditCard className="size-3" />
+            {paid ? "fatura paga" : t.cardPending ? "no cartão" : "na fatura"}
+          </span>
+        )}
       </span>
     </li>
   );
@@ -365,11 +370,28 @@ export function CategorySelect({ id, kind, value, onChange }: { id: string; kind
   );
 }
 
-export function AccountSelect({ id, value, onChange, placeholder = "Sem conta", excludeCards }: { id: string; value: string; onChange: (v: string) => void; placeholder?: string; excludeCards?: boolean }) {
+export const CARD_PENDING = "__cartao__";
+
+export function AccountSelect({
+  id,
+  value,
+  onChange,
+  placeholder = "Sem conta",
+  excludeCards,
+  allowCardPending,
+}: {
+  id: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  excludeCards?: boolean;
+  allowCardPending?: boolean;
+}) {
   const { accounts } = useFin();
   return (
     <select id={id} className={inputCls} value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="">{placeholder}</option>
+      {allowCardPending && <option value={CARD_PENDING}>Cartão de crédito (identificar na fatura)</option>}
       {accounts
         .filter((a) => (!a.archived || a.id === value) && !(excludeCards && a.type === "CREDIT_CARD"))
         .map((a) => (
@@ -394,13 +416,14 @@ function TxForm({ initial, onClose }: { initial: Partial<FinTxDTO> & { installme
     date: initial.date ?? today,
     paid: initial.paid ?? true,
     categoryId: initial.categoryId ?? "",
-    accountId: initial.accountId ?? accounts.find((a) => a.type === "CHECKING" && !a.archived)?.id ?? "",
+    accountId: initial.cardPending ? CARD_PENDING : (initial.accountId ?? accounts.find((a) => a.type === "CHECKING" && !a.archived)?.id ?? ""),
     toAccountId: initial.toAccountId ?? "",
     installments: String(initial.installments ?? 1),
     notes: initial.notes ?? "",
   });
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
-  const isCard = accById(f.accountId)?.type === "CREDIT_CARD";
+  const pendingCard = f.accountId === CARD_PENDING;
+  const isCard = accById(f.accountId)?.type === "CREDIT_CARD" || pendingCard;
   const isInstallment = !!initial.installmentGroup;
 
   const submit = (scope: "one" | "following" = "one") =>
@@ -415,8 +438,9 @@ function TxForm({ initial, onClose }: { initial: Partial<FinTxDTO> & { installme
           date: f.date,
           paid: f.paid,
           categoryId: f.categoryId || null,
-          accountId: f.accountId || null,
+          accountId: pendingCard ? null : f.accountId || null,
           toAccountId: f.toAccountId || null,
+          cardPending: pendingCard,
           installments: editing ? 1 : Number(f.installments) || 1,
           notes: f.notes,
         },
@@ -513,7 +537,7 @@ function TxForm({ initial, onClose }: { initial: Partial<FinTxDTO> & { installme
               <label htmlFor="tx-acc" className={lbl}>
                 {f.kind === "INCOME" ? "Entrou em" : "Pago com"}
               </label>
-              <AccountSelect id="tx-acc" value={f.accountId} onChange={(v) => set("accountId", v)} />
+              <AccountSelect id="tx-acc" value={f.accountId} onChange={(v) => set("accountId", v)} allowCardPending={f.kind === "EXPENSE"} />
             </div>
           </div>
         )}
@@ -539,7 +563,13 @@ function TxForm({ initial, onClose }: { initial: Partial<FinTxDTO> & { installme
             {!f.paid && <span className="text-[13px] text-fg-3">(fica em “a pagar” até você marcar)</span>}
           </label>
         )}
-        {isCard && <p className="rounded-[10px] bg-surface-2 px-3 py-2 text-[13px] text-fg-2">Compra no cartão: entra na fatura e é paga quando você pagar a fatura em “Contas e cartões”.</p>}
+        {isCard && (
+          <p className="rounded-[10px] bg-surface-2 px-3 py-2 text-[13px] text-fg-2">
+            {pendingCard
+              ? "Cobrado em cartão: quando você importar a fatura, este gasto é reconhecido e abatido nela. Só é pago junto com a fatura."
+              : "Compra no cartão: entra na fatura e é paga quando você pagar a fatura em “Contas e cartões”."}
+          </p>
+        )}
         <div className="grid gap-1.5">
           <label htmlFor="tx-notes" className={lbl}>
             Observação (opcional)

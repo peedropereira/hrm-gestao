@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ClipboardList, Loader2, Plus, Repeat, Trash2, Zap } from "lucide-react";
+import { ClipboardList, CreditCard, Loader2, Plus, Repeat, Trash2, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { useApp } from "@/components/app-provider";
 import { Card, EmptyState, PanelHead } from "@/components/ds";
 import { Button } from "@/components/button";
 import { Sheet } from "@/components/sheet";
-import { AccountSelect, CatIcon, CategorySelect, useFin } from "@/components/fin/fin-ui";
+import { AccountSelect, CARD_PENDING, CatIcon, CategorySelect, useFin } from "@/components/fin/fin-ui";
 import { endRecurring, importRecurring, saveRecurring } from "@/app/actions/finance";
 import { parseFixedList, type FixedLine } from "@/lib/fin-parse";
 import { brl, monthAbbr, moneyInput, parseMoney, type FinRecurringDTO } from "@/lib/fin-types";
@@ -59,6 +59,11 @@ export function FixosView({ items }: { items: FinRecurringDTO[] }) {
             </b>
             <span className="flex justify-end gap-1 text-[11px] font-semibold uppercase tracking-[0.04em] text-fg-3">
               {r.variable && <span>varia</span>}
+              {r.onCard && (
+                <span className="inline-flex items-center gap-0.5">
+                  <CreditCard className="size-3" /> cartão
+                </span>
+              )}
               {r.autoPaid && (
                 <span className="inline-flex items-center gap-0.5">
                   <Zap className="size-3" /> débito
@@ -155,7 +160,7 @@ function RecForm({ initial, onClose }: { initial: Partial<FinRecurringDTO>; onCl
     description: initial.description ?? "",
     amount: initial.amount ? moneyInput(initial.amount) : "",
     categoryId: initial.categoryId ?? "",
-    accountId: initial.accountId ?? "",
+    accountId: initial.onCard ? CARD_PENDING : (initial.accountId ?? ""),
     dayOfMonth: String(initial.dayOfMonth ?? 5),
     startMonth: initial.startMonth ?? today.slice(0, 7),
     endMonth: initial.endMonth ?? "",
@@ -175,7 +180,8 @@ function RecForm({ initial, onClose }: { initial: Partial<FinRecurringDTO>; onCl
           description: f.description,
           amount,
           categoryId: f.categoryId || null,
-          accountId: f.accountId || null,
+          accountId: f.accountId === CARD_PENDING ? null : f.accountId || null,
+          onCard: f.accountId === CARD_PENDING,
           dayOfMonth: Number(f.dayOfMonth),
           startMonth: f.startMonth,
           endMonth: f.endMonth || null,
@@ -257,7 +263,7 @@ function RecForm({ initial, onClose }: { initial: Partial<FinRecurringDTO>; onCl
             <label htmlFor="rec-acc" className={lbl}>
               {f.kind === "INCOME" ? "Entra em" : "Pago com"}
             </label>
-            <AccountSelect id="rec-acc" value={f.accountId} onChange={(v) => set("accountId", v)} />
+            <AccountSelect id="rec-acc" value={f.accountId} onChange={(v) => set("accountId", v)} allowCardPending={f.kind === "EXPENSE"} />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -281,7 +287,7 @@ function RecForm({ initial, onClose }: { initial: Partial<FinRecurringDTO>; onCl
             <span className="block text-[13px] text-fg-3">Ex.: luz, água. O valor acima vira estimativa; ajuste quando a conta chegar.</span>
           </span>
         </label>
-        <label className="flex items-start gap-2.5 text-[15px] md:text-[14px]">
+        <label className={cn("flex items-start gap-2.5 text-[15px] md:text-[14px]", f.accountId === CARD_PENDING && "hidden")}>
           <input type="checkbox" className="mt-0.5 size-5 accent-[var(--ac)]" checked={f.autoPaid} onChange={(e) => set("autoPaid", e.target.checked)} />
           <span>
             Débito automático

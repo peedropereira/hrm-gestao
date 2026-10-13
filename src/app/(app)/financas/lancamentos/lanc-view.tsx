@@ -24,7 +24,7 @@ export function LancView({ month, txs }: { month: string; txs: FinTxDTO[] }) {
   const [q, setQ] = useState("");
   const [acc, setAcc] = useState("");
 
-  const isCard = (t: FinTxDTO) => accById(t.accountId)?.type === "CREDIT_CARD";
+  const isCard = (t: FinTxDTO) => t.cardPending || accById(t.accountId)?.type === "CREDIT_CARD";
   const shown = txs.filter((t) => {
     if (filter === "despesas" && t.kind !== "EXPENSE") return false;
     if (filter === "receitas" && t.kind !== "INCOME") return false;

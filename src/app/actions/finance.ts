@@ -41,6 +41,7 @@ const txInput = z.object({
   accountId: id.nullish(),
   toAccountId: id.nullish(),
   installments: z.number().int().min(1).max(48).default(1),
+  cardPending: z.boolean().default(false),
   notes: z.string().trim().max(2000).nullish(),
 });
 
@@ -54,13 +55,17 @@ export async function saveTransaction(raw: z.input<typeof txInput>, txId?: strin
     if (d.kind === "TRANSFER" && (!acc || !toAcc)) throw new Error("Escolha a conta de origem e a de destino.");
     if (d.kind === "TRANSFER" && acc?.id === toAcc?.id) throw new Error("Origem e destino precisam ser contas diferentes.");
     const categoryId = d.kind === "TRANSFER" ? null : await checkCategory(user.id, d.categoryId);
+    // "cartão (identificar na fatura)": fica pendente até a fatura ser lançada
+    const cardPending = d.kind === "EXPENSE" && !acc && d.cardPending;
     const base = {
       kind: d.kind,
       categoryId,
       accountId: acc?.id ?? null,
       toAccountId: toAcc?.id ?? null,
+      cardPending,
       notes: d.notes || null,
     };
+    const onCard = cardPending || acc?.type === "CREDIT_CARD";
 
     if (txId) {
       const cur = await db.finTransaction.findFirst({ where: { id: id.parse(txId), ownerId: user.id, deletedAt: null } });
@@ -70,9 +75,9 @@ export async function saveTransaction(raw: z.input<typeof txInput>, txId?: strin
         description: d.description,
         amount: d.amount,
         date: isoDate(d.date),
-        paid: d.paid,
-        paidAt: d.paid ? (cur.paidAt ?? isoDate(d.date <= todayISO() ? d.date : todayISO())) : null,
-        invoiceMonth: invoiceFor(acc, d.date),
+        paid: onCard ? cur.paid && acc?.type === "CREDIT_CARD" : d.paid,
+        paidAt: onCard ? cur.paidAt : d.paid ? (cur.paidAt ?? isoDate(d.date <= todayISO() ? d.date : todayISO())) : null,
+        invoiceMonth: acc?.type === "CREDIT_CARD" ? (cur.accountId === acc.id && cur.invoiceMonth ? cur.invoiceMonth : invoiceFor(acc, d.date)) : null,
       };
       await db.finTransaction.update({ where: { id: cur.id }, data });
       if (scope === "following" && cur.installmentGroup && cur.installmentNo) {
@@ -116,7 +121,6 @@ export async function saveTransaction(raw: z.input<typeof txInput>, txId?: strin
       return { ok: true, data: { id: group } };
     }
 
-    const isCard = acc?.type === "CREDIT_CARD";
     const t = await db.finTransaction.create({
       data: {
         ownerId: user.id,
@@ -124,8 +128,8 @@ export async function saveTransaction(raw: z.input<typeof txInput>, txId?: strin
         description: d.description,
         amount: d.amount,
         date: isoDate(d.date),
-        paid: isCard ? false : d.paid,
-        paidAt: !isCard && d.paid ? isoDate(d.date) : null,
+        paid: onCard ? false : d.paid,
+        paidAt: !onCard && d.paid ? isoDate(d.date) : null,
         invoiceMonth: invoiceFor(acc, d.date),
       },
     });
@@ -139,8 +143,9 @@ export async function saveTransaction(raw: z.input<typeof txInput>, txId?: strin
 export async function setPaid(txId: string, paid: boolean): Promise<Result> {
   try {
     const user = await actionUser();
-    const t = await db.finTransaction.findFirst({ where: { id: id.parse(txId), ownerId: user.id, deletedAt: null } });
+    const t = await db.finTransaction.findFirst({ where: { id: id.parse(txId), ownerId: user.id, deletedAt: null }, include: { account: { select: { type: true } } } });
     if (!t) throw new Error("Lançamento não encontrado.");
+    if (t.cardPending || t.account?.type === "CREDIT_CARD") throw new Error("Este gasto é do cartão: ele é pago quando você paga a fatura inteira.");
     await db.finTransaction.update({ where: { id: t.id }, data: { paid, paidAt: paid ? isoDate(todayISO()) : null } });
     refreshAll();
     return { ok: true };
@@ -226,6 +231,7 @@ const recInput = z.object({
   endMonth: month.nullish(),
   variable: z.boolean().default(false),
   autoPaid: z.boolean().default(false),
+  onCard: z.boolean().default(false),
   notes: z.string().trim().max(2000).nullish(),
 });
 
@@ -247,7 +253,8 @@ export async function saveRecurring(raw: z.input<typeof recInput>, recId?: strin
       startMonth: monthDate(d.startMonth),
       endMonth: d.endMonth ? monthDate(d.endMonth) : null,
       variable: d.variable,
-      autoPaid: d.autoPaid,
+      autoPaid: d.autoPaid && !d.onCard && acc?.type !== "CREDIT_CARD",
+      onCard: d.onCard && !acc,
       notes: d.notes || null,
     };
     if (recId) {
@@ -266,7 +273,16 @@ export async function saveRecurring(raw: z.input<typeof recInput>, recId?: strin
         const date = dayInMonth(m, d.dayOfMonth);
         await db.finTransaction.update({
           where: { id: t.id },
-          data: { kind: d.kind, description: d.description, amount: d.amount, categoryId, accountId: acc?.id ?? null, date: isoDate(date), invoiceMonth: invoiceFor(acc, date) },
+          data: {
+            kind: d.kind,
+            description: d.description,
+            amount: d.amount,
+            categoryId,
+            accountId: acc?.id ?? null,
+            date: isoDate(date),
+            invoiceMonth: invoiceFor(acc, date),
+            cardPending: data.onCard,
+          },
         });
       }
       refreshAll();
@@ -434,6 +450,73 @@ export async function archiveCategory(categoryId: string, archived = true): Prom
     await db.finCategory.update({ where: { id: c.id }, data: { archived } });
     refreshAll();
     return { ok: true };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+// ---------- importação de fatura (PDF) ----------
+
+const invoiceItem = z.object({
+  date: iso,
+  description: z.string().trim().min(1).max(200),
+  amount: money,
+  credit: z.boolean().default(false), // estorno/crédito: abate da fatura
+  categoryId: id.nullish(),
+  matchTxId: id.nullish(), // gasto fixo já lançado que corresponde a esta linha
+});
+
+/**
+ * Lança as compras da fatura no cartão.
+ * Linhas que correspondem a fixos já lançados (ex.: Netflix) não duplicam: o fixo é ligado a esta fatura.
+ */
+export async function importInvoice(cardId: string, invoice: string, raw: z.input<typeof invoiceItem>[]): Promise<Result<{ created: number; matched: number; skipped: number }>> {
+  try {
+    const user = await actionUser();
+    const card = await ownAccount(user.id, cardId);
+    if (!card || card.type !== "CREDIT_CARD") throw new Error("Escolha um cartão de crédito.");
+    const m = month.parse(invoice);
+    const items = z.array(invoiceItem).min(1, "Nenhuma compra selecionada.").max(500).parse(raw);
+    const cats = new Set((await db.finCategory.findMany({ where: { ownerId: user.id }, select: { id: true } })).map((c) => c.id));
+    const existing = await db.finTransaction.findMany({ where: { ownerId: user.id, accountId: card.id, invoiceMonth: monthDate(m), deletedAt: null } });
+    const key = (d: string, a: number, desc: string) => `${d}|${a.toFixed(2)}|${desc.toLowerCase().replace(/\s+/g, " ").slice(0, 40)}`;
+    const seen = new Set(existing.map((t) => key(dateOnlyToISO(t.date)!, Number(t.amount), t.description)));
+    let created = 0;
+    let matched = 0;
+    let skipped = 0;
+    for (const it of items) {
+      if (it.matchTxId) {
+        const t = await db.finTransaction.findFirst({ where: { id: it.matchTxId, ownerId: user.id, deletedAt: null } });
+        if (t) {
+          await db.finTransaction.update({ where: { id: t.id }, data: { accountId: card.id, invoiceMonth: monthDate(m), cardPending: false, amount: it.amount, paid: false, paidAt: null } });
+          matched++;
+          continue;
+        }
+      }
+      const k = key(it.date, it.amount, it.description);
+      if (seen.has(k)) {
+        skipped++;
+        continue;
+      }
+      seen.add(k);
+      await db.finTransaction.create({
+        data: {
+          ownerId: user.id,
+          kind: it.credit ? "INCOME" : "EXPENSE",
+          description: it.description,
+          amount: it.amount,
+          date: isoDate(it.date),
+          paid: false,
+          categoryId: it.categoryId && cats.has(it.categoryId) ? it.categoryId : null,
+          accountId: card.id,
+          invoiceMonth: monthDate(m),
+          notes: "Importado da fatura (PDF)",
+        },
+      });
+      created++;
+    }
+    refreshAll();
+    return { ok: true, data: { created, matched, skipped } };
   } catch (e) {
     return fail(e);
   }
