@@ -7,6 +7,7 @@ import { actionUser } from "@/lib/session";
 import { dateOnlyToISO, todayISO } from "@/lib/dates";
 import { addMonth, dayInMonth, invoiceMonthOf } from "@/lib/fin-types";
 import { isoDate, monthDate } from "@/lib/finance";
+import { descKey } from "@/lib/fin-parse";
 import { fail, refreshAll, type Result } from "./_shared";
 
 const id = z.string().min(1).max(40);
@@ -517,6 +518,43 @@ export async function importInvoice(cardId: string, invoice: string, raw: z.inpu
     }
     refreshAll();
     return { ok: true, data: { created, matched, skipped } };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Aplica a categoria a todos os lançamentos sem categoria com o mesmo estabelecimento. */
+export async function applyCategoryToSimilar(txId: string, categoryId: string): Promise<Result<{ count: number }>> {
+  try {
+    const user = await actionUser();
+    const t = await db.finTransaction.findFirst({ where: { id: id.parse(txId), ownerId: user.id } });
+    if (!t) throw new Error("Lançamento não encontrado.");
+    const cat = await checkCategory(user.id, categoryId);
+    const key = descKey(t.description);
+    if (!key) return { ok: true, data: { count: 0 } };
+    const others = await db.finTransaction.findMany({ where: { ownerId: user.id, deletedAt: null, categoryId: null, kind: t.kind, id: { not: t.id } }, select: { id: true, description: true } });
+    const ids = others.filter((o) => descKey(o.description) === key).map((o) => o.id);
+    if (ids.length) await db.finTransaction.updateMany({ where: { id: { in: ids } }, data: { categoryId: cat } });
+    refreshAll();
+    return { ok: true, data: { count: ids.length } };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Define a categoria de um lançamento e, se pedido, dos iguais ainda sem categoria. */
+export async function setTxCategory(txId: string, categoryId: string | null, similar = true): Promise<Result<{ count: number }>> {
+  try {
+    const user = await actionUser();
+    const t = await db.finTransaction.findFirst({ where: { id: id.parse(txId), ownerId: user.id, deletedAt: null } });
+    if (!t) throw new Error("Lançamento não encontrado.");
+    const cat = categoryId ? await checkCategory(user.id, categoryId) : null;
+    await db.finTransaction.update({ where: { id: t.id }, data: { categoryId: cat } });
+    if (!cat || !similar) {
+      refreshAll();
+      return { ok: true, data: { count: 0 } };
+    }
+    return applyCategoryToSimilar(t.id, cat);
   } catch (e) {
     return fail(e);
   }

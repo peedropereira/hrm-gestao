@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { dateOnlyToISO } from "@/lib/dates";
 import { getCategories, monthDate } from "@/lib/finance";
 import { addMonth } from "@/lib/fin-types";
-import { guessCategory } from "@/lib/fin-parse";
+import { descKey, guessCategory } from "@/lib/fin-parse";
 import { norm } from "@/lib/nl-parse";
 import { matchWindow, parseInvoiceFromText } from "@/lib/invoice-pdf";
 import { kindOf, parseInvoiceFile } from "@/lib/invoice-files";
@@ -56,6 +56,12 @@ export async function POST(req: Request) {
   });
   const used = new Set<string>();
   const categories = await getCategories(ownerId);
+  // aprende com o que você já categorizou: mesmo estabelecimento → mesma categoria
+  const learned = new Map<string, string>();
+  for (const t of await db.finTransaction.findMany({ where: { ownerId, deletedAt: null, categoryId: { not: null } }, select: { description: true, categoryId: true }, orderBy: { createdAt: "asc" }, take: 5000 })) {
+    const k = descKey(t.description);
+    if (k) learned.set(k, t.categoryId!);
+  }
   const lines = parsed.lines.map((l) => {
     let match: { txId: string; description: string; amount: number } | null = null;
     if (!l.credit) {
@@ -78,7 +84,10 @@ export async function POST(req: Request) {
         match = { txId: scored[0].c.id, description: scored[0].c.description, amount: Number(scored[0].c.amount) };
       }
     }
-    return { ...l, categoryId: guessCategory(l.description, categories, l.credit ? "INCOME" : "EXPENSE"), match };
+    const kind = l.credit ? "INCOME" : "EXPENSE";
+    const known = learned.get(descKey(l.description));
+    const knownOk = known && categories.find((c) => c.id === known && c.kind === kind && !c.archived);
+    return { ...l, categoryId: knownOk ? known : guessCategory(l.description, categories, kind), match };
   });
   // só avisa dos que ainda aguardam fatura (os que já estão nesta fatura não precisam de aviso)
   const pending = candidates.filter((c) => !used.has(c.id) && c.cardPending).map((c) => ({ id: c.id, description: c.description, amount: Number(c.amount), date: dateOnlyToISO(c.date)! }));

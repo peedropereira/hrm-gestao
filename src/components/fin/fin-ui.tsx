@@ -39,7 +39,7 @@ import { toast } from "sonner";
 import { useApp } from "@/components/app-provider";
 import { Sheet } from "@/components/sheet";
 import { Button } from "@/components/button";
-import { deleteTransaction, restoreTransactions, saveTransaction, setPaid } from "@/app/actions/finance";
+import { applyCategoryToSimilar, deleteTransaction, restoreTransactions, saveTransaction, setPaid, setTxCategory } from "@/app/actions/finance";
 import { parseFin } from "@/lib/fin-parse";
 import { useSpeech } from "@/lib/use-speech";
 import { formatShort } from "@/lib/dates";
@@ -192,7 +192,7 @@ export function Money({ v, kind, className }: { v: number; kind?: FinKind; class
 }
 
 /** Linha de lançamento com marcar pago. */
-export function TxRow({ t, showDate = true }: { t: FinTxDTO; showDate?: boolean }) {
+export function TxRow({ t, showDate = true, quickCategory }: { t: FinTxDTO; showDate?: boolean; quickCategory?: boolean }) {
   const { catById, accById, openTx } = useFin();
   const { today } = useApp();
   const [pending, start] = useTransition();
@@ -212,8 +212,15 @@ export function TxRow({ t, showDate = true }: { t: FinTxDTO; showDate?: boolean 
       }
     });
   };
+  const pickCategory = (categoryId: string) =>
+    start(async () => {
+      const r = await setTxCategory(t.id, categoryId || null, true);
+      if (!r.ok) return void toast.error(r.error);
+      const n = r.data?.count ?? 0;
+      toast.success(n ? `Categoria aplicada a mais ${n} ${n === 1 ? "lançamento igual" : "lançamentos iguais"}` : "Categoria salva");
+    });
   return (
-    <li className="flex items-center gap-3 border-t border-line px-3.5 py-2.5 first:border-t-0">
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-line px-3.5 py-2.5 first:border-t-0">
       <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => openTx(t)}>
         <CatIcon cat={cat} kind={t.kind} />
         <span className="min-w-0 flex-1">
@@ -249,6 +256,11 @@ export function TxRow({ t, showDate = true }: { t: FinTxDTO; showDate?: boolean 
           </span>
         )}
       </span>
+      {quickCategory && t.kind !== "TRANSFER" && (
+        <div className="basis-full pl-[46px]">
+          <CategorySelect id={`qc-${t.id}`} kind={t.kind === "INCOME" ? "INCOME" : "EXPENSE"} value={t.categoryId ?? ""} onChange={pickCategory} />
+        </div>
+      )}
     </li>
   );
 }
@@ -448,7 +460,12 @@ function TxForm({ initial, onClose }: { initial: Partial<FinTxDTO> & { installme
         scope,
       );
       if (!r.ok) return void toast.error(r.error);
-      toast.success(editing ? "Lançamento atualizado" : "Lançamento criado");
+      let extra = "";
+      if (editing && f.categoryId && f.categoryId !== (initial.categoryId ?? "")) {
+        const s = await applyCategoryToSimilar(initial.id!, f.categoryId);
+        if (s.ok && s.data?.count) extra = ` · categoria aplicada a mais ${s.data.count} iguais`;
+      }
+      toast.success((editing ? "Lançamento atualizado" : "Lançamento criado") + extra);
       onClose();
     });
 

@@ -175,16 +175,27 @@ export async function getAccounts(ownerId: string) {
 }
 
 /** Totais de receitas e despesas por mês (para o gráfico de evolução). */
+/**
+ * Mês em que o lançamento conta: compra no cartão conta no mês da fatura (quando é paga);
+ * o resto, pela data. Assim parcelas antigas aparecem no mês da fatura atual.
+ */
+const inMonths = (from: string, toExclusive: string) => ({
+  OR: [
+    { invoiceMonth: { gte: monthDate(from), lt: monthDate(toExclusive) } },
+    { invoiceMonth: null, date: { gte: monthDate(from), lt: monthDate(toExclusive) } },
+  ],
+});
+const monthOfTx = (t: { invoiceMonth: Date | null; date: Date }) => dateOnlyToISO(t.invoiceMonth ?? t.date)!.slice(0, 7);
+
 export async function getHistory(ownerId: string, lastMonth: string, n = 12) {
   const first = addMonth(lastMonth, -(n - 1));
   const rows = await db.finTransaction.findMany({
-    where: { ownerId, deletedAt: null, kind: { in: ["INCOME", "EXPENSE"] }, date: { gte: monthDate(first), lt: monthDate(addMonth(lastMonth, 1)) } },
-    select: { kind: true, amount: true, date: true },
+    where: { ownerId, deletedAt: null, kind: { in: ["INCOME", "EXPENSE"] }, ...inMonths(first, addMonth(lastMonth, 1)) },
+    select: { kind: true, amount: true, date: true, invoiceMonth: true },
   });
   const out = Array.from({ length: n }, (_, i) => ({ month: addMonth(first, i), income: 0, expense: 0 }));
   for (const r of rows) {
-    const m = dateOnlyToISO(r.date)!.slice(0, 7);
-    const slot = out.find((x) => x.month === m);
+    const slot = out.find((x) => x.month === monthOfTx(r));
     if (!slot) continue;
     if (r.kind === "INCOME") slot.income += num(r.amount);
     else slot.expense += num(r.amount);
@@ -192,10 +203,10 @@ export async function getHistory(ownerId: string, lastMonth: string, n = 12) {
   return out.map((x) => ({ ...x, income: Math.round(x.income), expense: Math.round(x.expense) }));
 }
 
-/** Lançamentos de um mês (pela data). */
+/** Lançamentos de um mês (compras de cartão pelo mês da fatura). */
 export async function getMonthTx(ownerId: string, month: string) {
   const rows = await db.finTransaction.findMany({
-    where: { ownerId, deletedAt: null, date: { gte: monthDate(month), lt: monthDate(addMonth(month, 1)) } },
+    where: { ownerId, deletedAt: null, ...inMonths(month, addMonth(month, 1)) },
     orderBy: [{ date: "desc" }, { createdAt: "desc" }],
   });
   return rows.map(toTxDTO);

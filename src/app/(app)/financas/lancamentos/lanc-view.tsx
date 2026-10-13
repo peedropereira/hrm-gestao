@@ -16,6 +16,7 @@ const FILTERS = [
   ["abertos", "Em aberto"],
   ["fixos", "Fixos"],
   ["cartao", "Cartão"],
+  ["semcat", "Sem categoria"],
 ] as const;
 
 export function LancView({ month, txs }: { month: string; txs: FinTxDTO[] }) {
@@ -31,6 +32,7 @@ export function LancView({ month, txs }: { month: string; txs: FinTxDTO[] }) {
     if (filter === "abertos" && (t.paid || isCard(t) || t.kind === "TRANSFER")) return false;
     if (filter === "fixos" && !t.recurringId) return false;
     if (filter === "cartao" && !isCard(t)) return false;
+    if (filter === "semcat" && (t.categoryId || t.kind === "TRANSFER")) return false;
     if (acc && t.accountId !== acc && t.toAccountId !== acc) return false;
     if (q.trim()) {
       const hay = norm(`${t.description} ${catById(t.categoryId)?.name ?? ""} ${catById(t.categoryId)?.group ?? ""} ${t.notes ?? ""}`);
@@ -41,9 +43,16 @@ export function LancView({ month, txs }: { month: string; txs: FinTxDTO[] }) {
   const income = shown.filter((t) => t.kind === "INCOME").reduce((s, t) => s + t.amount, 0);
   const expense = shown.filter((t) => t.kind === "EXPENSE").reduce((s, t) => s + t.amount, 0);
 
+  // compras de cartão ficam agrupadas na fatura; o resto, por dia
+  const byInvoice = new Map<string, FinTxDTO[]>();
   const byDay = new Map<string, FinTxDTO[]>();
-  for (const t of shown) byDay.set(t.date, [...(byDay.get(t.date) ?? []), t]);
+  for (const t of shown) {
+    if (t.invoiceMonth && t.accountId) byInvoice.set(`${t.accountId}|${t.invoiceMonth}`, [...(byInvoice.get(`${t.accountId}|${t.invoiceMonth}`) ?? []), t]);
+    else byDay.set(t.date, [...(byDay.get(t.date) ?? []), t]);
+  }
   const days = [...byDay.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+  const invoices = [...byInvoice.entries()].map(([k, list]) => ({ k, acc: accById(k.split("|")[0]), list: list.sort((a, b) => b.date.localeCompare(a.date)) }));
+  const uncategorized = txs.filter((t) => !t.categoryId && t.kind !== "TRANSFER").length;
 
   return (
     <div className="grid gap-4 px-4 pb-8 md:px-7">
@@ -100,7 +109,29 @@ export function LancView({ month, txs }: { month: string; txs: FinTxDTO[] }) {
         ))}
       </div>
 
-      {days.length === 0 ? (
+      {uncategorized > 0 && filter !== "semcat" && (
+        <button type="button" onClick={() => setFilter("semcat")} className="rounded-[12px] bg-amber-bg px-4 py-2.5 text-left text-[14px] text-fg">
+          <b>{uncategorized}</b> {uncategorized === 1 ? "lançamento sem categoria" : "lançamentos sem categoria"} neste mês. <span className="font-semibold text-amber">Categorizar agora</span>
+        </button>
+      )}
+
+      {invoices.map(({ k, acc: a, list }) => (
+        <Card key={k}>
+          <div className="flex items-center justify-between border-b border-line bg-surface-2 px-3.5 py-2 text-[13px] font-semibold text-fg-2">
+            <span>
+              Fatura {a?.name ?? "cartão"} · {list.length} {list.length === 1 ? "compra" : "compras"}
+            </span>
+            <span className="tabular-nums">{brl(list.reduce((s, t) => s + (t.kind === "INCOME" ? -t.amount : t.amount), 0))}</span>
+          </div>
+          <ul>
+            {list.map((t) => (
+              <TxRow key={t.id + t.paid + t.categoryId} t={t} quickCategory={filter === "semcat"} />
+            ))}
+          </ul>
+        </Card>
+      ))}
+
+      {days.length === 0 && invoices.length === 0 ? (
         <EmptyState title="Nenhum lançamento">{txs.length ? "Nada neste filtro." : "Lance o primeiro gasto no campo acima."}</EmptyState>
       ) : (
         <div className="grid gap-3">
@@ -112,7 +143,7 @@ export function LancView({ month, txs }: { month: string; txs: FinTxDTO[] }) {
               </div>
               <ul>
                 {list.map((t) => (
-                  <TxRow key={t.id + t.paid} t={t} showDate={false} />
+                  <TxRow key={t.id + t.paid + t.categoryId} t={t} showDate={false} quickCategory={filter === "semcat"} />
                 ))}
               </ul>
             </Card>

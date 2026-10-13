@@ -210,3 +210,14 @@ export function guessCategory(description: string, categories: FinCategoryDTO[],
   }
   return pool.find((x) => norm(x.name).split(/[\s/]+/).some((w) => w.length > 3 && new RegExp(`\\b${w}\\b`).test(n)))?.id ?? null;
 }
+
+/** Chave para reconhecer o mesmo estabelecimento: "NETFLIX.COM (2/10)" → "netflix com". */
+export function descKey(description: string) {
+  return norm(description)
+    .replace(/\(\s*\d+\s*\/\s*\d+\s*\)/g, " ")
+    .replace(/[^a-z ]+/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length >= 2 && !["parc", "parcela", "de", "do", "da", "com", "br"].includes(w))
+    .slice(0, 3)
+    .join(" ");
+}
