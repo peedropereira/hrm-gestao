@@ -6,7 +6,7 @@ import { getCategories, monthDate } from "@/lib/finance";
 import { addMonth } from "@/lib/fin-types";
 import { guessCategory } from "@/lib/fin-parse";
 import { norm } from "@/lib/nl-parse";
-import { matchWindow, parseInvoicePdf } from "@/lib/invoice-pdf";
+import { matchWindow, parseInvoiceFromText, parseInvoicePdf } from "@/lib/invoice-pdf";
 
 // Lê o PDF da fatura e devolve as compras, com categoria sugerida e os fixos que correspondem.
 export const maxDuration = 60;
@@ -21,18 +21,21 @@ export async function POST(req: Request) {
   const file = form.get("file");
   const cardId = String(form.get("cardId") ?? "");
   const month = String(form.get("month") ?? "");
-  if (!(file instanceof File) || !/pdf/i.test(file.type || file.name)) return NextResponse.json({ error: "Envie o arquivo PDF da fatura." }, { status: 400 });
-  if (file.size > 4 * 1024 * 1024) return NextResponse.json({ error: "PDF muito grande (máx. 4 MB)." }, { status: 400 });
+  const pasted = String(form.get("text") ?? "").trim();
+  if (!pasted) {
+    if (!(file instanceof File) || !/pdf/i.test(file.type || file.name)) return NextResponse.json({ error: "Envie o arquivo PDF da fatura ou cole o texto." }, { status: 400 });
+    if (file.size > 4 * 1024 * 1024) return NextResponse.json({ error: "PDF muito grande (máx. 4 MB)." }, { status: 400 });
+  } else if (pasted.length > 200000) return NextResponse.json({ error: "Texto muito grande." }, { status: 400 });
   if (!/^\d{4}-\d{2}$/.test(month)) return NextResponse.json({ error: "Escolha o mês da fatura." }, { status: 400 });
   const card = await db.finAccount.findFirst({ where: { id: cardId, ownerId, type: "CREDIT_CARD" } });
   if (!card) return NextResponse.json({ error: "Cartão não encontrado." }, { status: 400 });
 
   let parsed;
   try {
-    parsed = await parseInvoicePdf(new Uint8Array(await file.arrayBuffer()), month);
+    parsed = pasted ? await parseInvoiceFromText(pasted, month) : await parseInvoicePdf(new Uint8Array(await (file as File).arrayBuffer()), month);
   } catch (e) {
-    console.error("PDF ilegível", e);
-    return NextResponse.json({ error: "Não consegui ler este PDF. Se for uma foto/escaneado, a leitura precisa da IA (ANTHROPIC_API_KEY)." }, { status: 422 });
+    console.error("fatura ilegível", e);
+    return NextResponse.json({ error: pasted ? "Não consegui entender o texto colado." : "Não consegui ler este PDF. Se for uma foto/escaneado, a leitura precisa da IA (ANTHROPIC_API_KEY)." }, { status: 422 });
   }
 
   // fixos do cartão que podem estar nesta fatura

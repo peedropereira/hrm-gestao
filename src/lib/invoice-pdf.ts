@@ -49,6 +49,63 @@ export function parseInvoiceText(text: string, invoice: string): InvoiceParse {
   return { lines, total: tot ? money(tot[1]) : null, source: "texto" };
 }
 
+/**
+ * Texto copiado do app/site do banco, linha a linha: a data pode vir sozinha numa linha
+ * ("12 OUT", "12/10", "Hoje") e a compra embaixo ("Netflix.com  R$ 59,90" ou nome numa linha e valor na outra).
+ */
+export function parseInvoiceLoose(text: string, invoice: string): InvoiceParse {
+  const rows = text.replace(/ /g, " ").split(/\r?\n/).map((l) => l.replace(/\s+/g, " ").trim()).filter(Boolean);
+  const lines: InvoiceLine[] = [];
+  const firstDay = `${addMonth(invoice, -1)}-01`;
+  let date = firstDay;
+  let pendingDesc = "";
+  const dateOnly = /^(\d{1,2})\s*(?:[/.-]\s*(\d{1,2})|[/.-]?\s*(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)[a-z]*\.?)(?:\s*[/.-]?\s*\d{2,4})?$/i;
+  const moneyEnd = /^(.*?)\s*(-\s*)?(?:R\$\s*)?(-\s*)?(\d{1,3}(?:\.\d{3})*,\d{2})(\s*-)?$/i;
+  for (const row of rows) {
+    const d = row.match(dateOnly);
+    if (d) {
+      const mm = d[2] ?? MES[(d[3] ?? "").slice(0, 3).toUpperCase()];
+      if (mm && Number(mm) <= 12 && Number(d[1]) <= 31) date = fullDate(d[1], mm, invoice);
+      pendingDesc = "";
+      continue;
+    }
+    const m = row.match(moneyEnd);
+    if (!m) {
+      // nome do estabelecimento numa linha, valor na próxima
+      if (!/^\d+$/.test(row) && row.length <= 80) pendingDesc = row;
+      continue;
+    }
+    let desc = (m[1] || pendingDesc).replace(/^(\d{1,2})\s*[/.-]\s*(\d{1,2})\s+/, (_, dd, mo) => {
+      if (Number(mo) <= 12) date = fullDate(dd, mo, invoice);
+      return "";
+    });
+    pendingDesc = "";
+    desc = desc.trim();
+    if (!desc || SKIP.test(desc)) continue;
+    const amount = money(m[4]);
+    if (!amount) continue;
+    const inst = desc.match(/(?:parc(?:ela)?\.?\s*)?(\d{1,2})\s*(?:\/|de)\s*(\d{1,2})\s*$/i);
+    let installment: string | null = null;
+    if (inst && Number(inst[1]) <= Number(inst[2])) {
+      installment = `${inst[1]}/${inst[2]}`;
+      desc = desc.slice(0, inst.index).trim();
+    }
+    const credit = !!(m[2] || m[3] || m[5]) || /\b(estorno|credito|crédito|reembolso|cashback)\b/i.test(desc);
+    lines.push({ date, description: installment ? `${desc} (${installment})` : desc, amount, credit, installment });
+  }
+  return { lines, total: null, source: "texto" };
+}
+
+/** Texto colado: tenta o formato de fatura, depois o formato do app, e por fim a IA (se houver chave). */
+export async function parseInvoiceFromText(text: string, invoice: string): Promise<InvoiceParse> {
+  const strict = parseInvoiceText(text, invoice);
+  const loose = parseInvoiceLoose(text, invoice);
+  const best = loose.lines.length > strict.lines.length ? { ...loose, total: strict.total } : strict;
+  if (best.lines.length) return best;
+  const ai = await parseTextWithClaude(text, invoice);
+  return ai ?? best;
+}
+
 async function extractPdfText(buf: Uint8Array) {
   const { extractText, getDocumentProxy } = await import("unpdf");
   const pdf = await getDocumentProxy(buf);
@@ -82,7 +139,12 @@ const TOOL = {
   },
 } as const;
 
-async function parseWithClaude(buf: Uint8Array, invoice: string): Promise<InvoiceParse | null> {
+const parseWithClaude = (buf: Uint8Array, invoice: string) =>
+  askClaude({ type: "document", source: { type: "base64", media_type: "application/pdf", data: Buffer.from(buf).toString("base64") } }, invoice);
+
+const parseTextWithClaude = (text: string, invoice: string) => askClaude({ type: "text", text: `Texto copiado da fatura:\n\n${text.slice(0, 60000)}` }, invoice);
+
+async function askClaude(source: Record<string, unknown>, invoice: string): Promise<InvoiceParse | null> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return null;
   const ctrl = new AbortController();
@@ -101,7 +163,7 @@ async function parseWithClaude(buf: Uint8Array, invoice: string): Promise<Invoic
           {
             role: "user",
             content: [
-              { type: "document", source: { type: "base64", media_type: "application/pdf", data: Buffer.from(buf).toString("base64") } },
+              source,
               {
                 type: "text",
                 text: `Fatura de cartão com vencimento em ${invoice}. Liste todas as compras e créditos lançados nesta fatura (de todos os cartões adicionais). Não inclua o pagamento da fatura anterior, saldo anterior, limites nem totais. Datas sem ano: use o ano coerente com o vencimento.`,

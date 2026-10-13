@@ -38,7 +38,7 @@ export function ContasView({ accounts, invoices, cardTx, awaiting }: { accounts:
         </p>
         <div className="flex gap-2">
           <Button variant="secondary" size="sm" className="h-11 md:h-9" onClick={() => setImporting(null)}>
-            <FileUp /> Importar fatura (PDF)
+            <FileUp /> Importar fatura (PDF ou texto)
           </Button>
           <Button variant="secondary" size="sm" className="h-11 md:h-9" onClick={() => setForm({ type: "CREDIT_CARD" })}>
             <CreditCard /> Novo cartão
@@ -115,7 +115,7 @@ export function ContasView({ accounts, invoices, cardTx, awaiting }: { accounts:
                   </span>
                   <div className="flex gap-2">
                     <Button variant="secondary" size="sm" className="h-11 md:h-9" onClick={() => setImporting(c)}>
-                      <FileUp /> PDF
+                      <FileUp /> Importar
                     </Button>
                     <Button size="sm" className="h-11 md:h-9" onClick={() => setPaying(current)}>
                       Pagar fatura
@@ -126,7 +126,7 @@ export function ContasView({ accounts, invoices, cardTx, awaiting }: { accounts:
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-[15px] text-fg-3">Nenhuma fatura em aberto.</p>
                   <Button variant="secondary" size="sm" className="h-11 md:h-9" onClick={() => setImporting(c)}>
-                    <FileUp /> Importar fatura (PDF)
+                    <FileUp /> Importar fatura (PDF ou texto)
                   </Button>
                 </div>
               )}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { FileText, Loader2, Sparkles, Upload } from "lucide-react";
+import { ClipboardPaste, FileText, Loader2, Sparkles, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useApp } from "@/components/app-provider";
 import { Sheet } from "@/components/sheet";
@@ -33,24 +33,27 @@ export function InvoiceImport({ card, onClose }: { card?: FinAccountDTO; onClose
   const defaultMonth = selected ? invoiceMonthOf(today, selected.closingDay, selected.dueDay) : addMonth(today.slice(0, 7), 1);
   const [month, setMonth] = useState(defaultMonth);
   const [file, setFile] = useState<File | null>(null);
+  const [mode, setMode] = useState<"pdf" | "texto">("pdf");
+  const [text, setText] = useState("");
   const [reading, setReading] = useState(false);
   const [data, setData] = useState<Parsed | null>(null);
   const [pending, start] = useTransition();
   const input = useRef<HTMLInputElement>(null);
 
   const read = async () => {
-    if (!file || !cardId) return;
+    if (!cardId || (mode === "pdf" ? !file : !text.trim())) return;
     setReading(true);
     try {
       const fd = new FormData();
-      fd.append("file", file);
+      if (mode === "pdf") fd.append("file", file!);
+      else fd.append("text", text);
       fd.append("cardId", cardId);
       fd.append("month", month);
       const res = await fetch("/api/financas/fatura", { method: "POST", body: fd });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Não foi possível ler o PDF.");
       const lines: Line[] = json.lines.map((l: Omit<Line, "on">) => ({ ...l, on: true }));
-      if (!lines.length) throw new Error("Não encontrei compras neste PDF. Confira se é a fatura do cartão.");
+      if (!lines.length) throw new Error(mode === "pdf" ? "Não encontrei compras neste PDF. Confira se é a fatura do cartão." : "Não encontrei compras no texto. Copie a lista de lançamentos com datas e valores.");
       setData({ ...json, lines });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Não foi possível ler o PDF.");
@@ -79,13 +82,13 @@ export function InvoiceImport({ card, onClose }: { card?: FinAccountDTO; onClose
 
   if (!cards.length)
     return (
-      <Sheet open onClose={onClose} title="Importar fatura (PDF)">
+      <Sheet open onClose={onClose} title="Importar fatura">
         <p className="text-[15px] text-fg-2">Cadastre primeiro o cartão em “Contas e cartões → Novo cartão”.</p>
       </Sheet>
     );
 
   return (
-    <Sheet open onClose={onClose} title="Importar fatura (PDF)" description="Envie o PDF da fatura: o sistema lê as compras e abate os fixos que já estão lançados." wide>
+    <Sheet open onClose={onClose} title="Importar fatura" description="Envie o PDF ou cole o texto da fatura: o sistema lê as compras e abate os fixos que já estão lançados." wide>
       {!data ? (
         <div className="grid gap-3.5">
           <div className="grid grid-cols-2 gap-3">
@@ -117,6 +120,42 @@ export function InvoiceImport({ card, onClose }: { card?: FinAccountDTO; onClose
               <input id="inv-month" type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="h-12 rounded-[12px] border border-line-strong bg-bg px-3 text-[16px] md:h-10 md:text-[14px]" />
             </div>
           </div>
+          <div className="grid grid-cols-2 gap-1 rounded-[12px] bg-surface-2 p-1" role="radiogroup" aria-label="Forma de importar">
+            {(
+              [
+                ["pdf", "Arquivo PDF"],
+                ["texto", "Colar texto"],
+              ] as const
+            ).map(([k, l]) => (
+              <button
+                key={k}
+                type="button"
+                role="radio"
+                aria-checked={mode === k}
+                onClick={() => setMode(k)}
+                className={cn("h-11 rounded-[9px] text-[14px] font-semibold text-fg-2 md:h-9", mode === k && "bg-surface text-fg shadow-[var(--shadow-sm),inset_0_0_0_1px_var(--line)]")}
+              >
+                {k === "pdf" ? <FileText className="mr-1.5 inline size-4" /> : <ClipboardPaste className="mr-1.5 inline size-4" />}
+                {l}
+              </button>
+            ))}
+          </div>
+          {mode === "texto" ? (
+            <div className="grid gap-1.5">
+              <label htmlFor="inv-text" className="sr-only">
+                Texto da fatura
+              </label>
+              <textarea
+                id="inv-text"
+                rows={9}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder={"Cole aqui os lançamentos copiados do app ou do site do banco, ex.:\n12/10 NETFLIX.COM 59,90\n14/10 POSTO SHELL 250,00\n15/10 MAGAZINE LUIZA 02/10 312,50"}
+                className="w-full rounded-[12px] border border-line-strong bg-bg p-3.5 font-mono text-[14px] leading-relaxed outline-none focus:border-ac"
+              />
+              <span className="text-[13px] text-fg-3">No app do banco: abra a fatura, selecione os lançamentos, copie e cole aqui. Também serve texto de e-mail ou WhatsApp.</span>
+            </div>
+          ) : (
           <button
             type="button"
             onClick={() => input.current?.click()}
@@ -126,8 +165,9 @@ export function InvoiceImport({ card, onClose }: { card?: FinAccountDTO; onClose
             <b className="text-[16px] md:text-[14px]">{file ? file.name : "Escolher o PDF da fatura"}</b>
             <span className="text-[13px] text-fg-3">Baixe no app do banco (Fatura → Baixar PDF). Máx. 4 MB.</span>
           </button>
+          )}
           <input ref={input} type="file" accept="application/pdf,.pdf" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-          <Button block disabled={!file || reading} onClick={read}>
+          <Button block disabled={(mode === "pdf" ? !file : !text.trim()) || reading} onClick={read}>
             {reading ? <Loader2 className="animate-spin" /> : <Sparkles />} {reading ? "Lendo a fatura…" : "Ler a fatura"}
           </Button>
         </div>
@@ -167,7 +207,7 @@ export function InvoiceImport({ card, onClose }: { card?: FinAccountDTO; onClose
               Fixos no cartão não encontrados nesta fatura: {data.pending.map((p) => `${p.description} (${brl(p.amount)})`).join(", ")}. Eles continuam aguardando a próxima fatura ou outro cartão.
             </p>
           )}
-          <p className="text-[13px] text-fg-3">Leitura {data.source === "ia" ? "feita pela IA" : "pelo texto do PDF"}. Desmarque o que não for compra (pagamentos, tarifas que você não quer lançar).</p>
+          <p className="text-[13px] text-fg-3">Leitura {data.source === "ia" ? "feita pela IA" : mode === "pdf" ? "pelo texto do PDF" : "do texto colado"}. Desmarque o que não for compra (pagamentos, tarifas que você não quer lançar).</p>
           <div className="grid grid-cols-[auto_1fr] gap-2">
             <Button variant="secondary" onClick={() => setData(null)}>
               Voltar
