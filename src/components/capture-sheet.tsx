@@ -21,51 +21,8 @@ import { AttachButtons, PendingFiles } from "@/components/attachments";
 import { uploadFiles } from "@/lib/upload-client";
 import type { UploadedFile } from "@/lib/upload-rules";
 import { captureToInbox } from "@/app/actions/inbox";
+import { enqueue } from "@/components/capture-queue";
 import { cn } from "@/lib/utils";
-
-const QUEUE_KEY = "hrm-captura-offline";
-
-type Queued = { text: string; mode: "action" | "inbox"; at: number };
-
-function readQueue(): Queued[] {
-  try {
-    return JSON.parse(localStorage.getItem(QUEUE_KEY) ?? "[]");
-  } catch {
-    return [];
-  }
-}
-function writeQueue(q: Queued[]) {
-  try {
-    localStorage.setItem(QUEUE_KEY, JSON.stringify(q));
-  } catch {
-    /* armazenamento indisponível */
-  }
-}
-
-function enqueue(text: string) {
-  writeQueue([...readQueue(), { text, mode: "inbox", at: Date.now() }]);
-}
-
-/** Envia capturas feitas sem sinal quando a conexão volta (sempre para a caixa de entrada). */
-export function useOfflineQueueFlush() {
-  useEffect(() => {
-    const flush = async () => {
-      const q = readQueue();
-      if (!q.length || !navigator.onLine) return;
-      const rest: Queued[] = [];
-      for (const item of q) {
-        const r = await captureToInbox(item.text).catch(() => ({ ok: false as const, error: "" }));
-        if (!r.ok) rest.push(item);
-      }
-      writeQueue(rest);
-      const sent = q.length - rest.length;
-      if (sent) toast.success(`${sent} ${sent === 1 ? "captura feita sem sinal foi enviada" : "capturas feitas sem sinal foram enviadas"} para a Caixa de Entrada`);
-    };
-    void flush();
-    window.addEventListener("online", flush);
-    return () => window.removeEventListener("online", flush);
-  }, []);
-}
 
 export function ParsedChips({ r }: { r: NLResult }) {
   const { sectorById, personById } = useApp();

@@ -118,7 +118,7 @@ export const getInboxCount = cache(async (ownerId: string) =>
 );
 
 /** Último valor de cada meta, para o semáforo, as páginas de setor e a página de metas. */
-export async function getKpiSnapshots(ownerId: string, sectorId?: string) {
+async function loadKpiSnapshots(ownerId: string, sectorId?: string) {
   const kpis = await db.kpi.findMany({
     where: { ownerId, deletedAt: null, active: true, ...(sectorId ? { sectorId } : {}) },
     include: {
@@ -161,7 +161,7 @@ export function formatKpiValue(v: number | null, unit: string) {
 }
 
 /** Semáforo por setor (subsetores somam no setor pai). */
-export async function getSectorHealth(ownerId: string, userId: string): Promise<SectorHealth[]> {
+async function loadSectorHealth(ownerId: string, userId: string): Promise<SectorHealth[]> {
   const today = todayISO();
   const [sectors, actions, kpis, settings] = await Promise.all([
     getSectors(ownerId),
@@ -201,3 +201,7 @@ export async function getSectorHealth(ownerId: string, userId: string): Promise<
       };
     });
 }
+
+// uma vez por requisição (o layout e a tela Hoje pedem os mesmos dados)
+export const getKpiSnapshots = cache(loadKpiSnapshots);
+export const getSectorHealth = cache(loadSectorHealth);

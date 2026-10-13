@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 import { useApp } from "@/components/app-provider";
 import { FlangeMark } from "@/components/brand";
 import { SectorTile, Dot, type Health } from "@/components/ds";
-import { useOfflineQueueFlush } from "@/components/capture-sheet";
+import { useOfflineQueueFlush } from "@/components/capture-queue";
 
 const NAV = [
   { href: "/hoje", label: "Hoje", icon: Sun },

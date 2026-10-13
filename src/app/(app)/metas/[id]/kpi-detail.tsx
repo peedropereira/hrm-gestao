@@ -9,7 +9,9 @@ import { useApp } from "@/components/app-provider";
 import { Card, DueBadge, PanelHead, PersonChip, SectorChip } from "@/components/ds";
 import { CheckButton } from "@/components/action-bits";
 import { Button } from "@/components/button";
-import { KpiChart, KpiForm, StatusPill, useKpiStatus } from "@/components/kpi-bits";
+import { KpiForm, StatusPill, useKpiStatus } from "@/components/kpi-bits";
+import { Skeleton } from "@/components/ds";
+import dynamic from "next/dynamic";
 import { archiveKpi, saveKpiEntries } from "@/app/actions/kpis";
 import { createAction } from "@/app/actions/actions";
 import { parseNL } from "@/lib/nl-parse";
@@ -17,6 +19,8 @@ import { STATUS_TEXT, alvoSymbol, fmtKpi, monthLong, monthShort, parseNumBR, sta
 import { cn } from "@/lib/utils";
 import type { KpiSnapshot } from "@/lib/data";
 import type { ActionDTO } from "@/lib/types";
+
+const KpiChart = dynamic(() => import("@/components/kpi-chart").then((m) => m.KpiChart), { ssr: false, loading: () => <Skeleton className="mx-4 my-3 h-[260px]" /> });
 
 type Props = {
   k: KpiSnapshot;

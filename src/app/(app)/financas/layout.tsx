@@ -1,12 +1,16 @@
 import { Suspense } from "react";
 import { requireUser } from "@/lib/session";
-import { ensureFinanceSetup, getAccounts, getCategories } from "@/lib/finance";
+import { ensureFinanceSetup, getAccounts, getCategories, loadCategories } from "@/lib/finance";
 import { FinProvider, FinTabs } from "@/components/fin/fin-ui";
 
 export default async function FinanceLayout({ children }: LayoutProps<"/financas">) {
   const user = await requireUser();
-  await ensureFinanceSetup(user.id);
-  const [categories, { accounts }] = await Promise.all([getCategories(user.id), getAccounts(user.id)]);
+  let [categories, { accounts }] = await Promise.all([getCategories(user.id), getAccounts(user.id)]);
+  // primeira vez: cria categorias e contas básicas
+  if (!categories.length || !accounts.length) {
+    await ensureFinanceSetup(user.id);
+    [categories, { accounts }] = await Promise.all([loadCategories(user.id), getAccounts(user.id)]);
+  }
   return (
     <FinProvider accounts={accounts} categories={categories}>
       <div className="mx-auto max-w-[1180px]">

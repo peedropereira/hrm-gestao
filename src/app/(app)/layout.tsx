@@ -4,8 +4,7 @@ import { getInboxCount, getOpenActions, getPeople, getSectorHealth, getSectors, 
 import { todayISO } from "@/lib/dates";
 import { AppProvider } from "@/components/app-provider";
 import { GlobalEffects, OfflineBanner, Sidebar, TabBar } from "@/components/shell";
-import { CaptureSheet } from "@/components/capture-sheet";
-import { SearchPalette } from "@/components/search-palette";
+import { LazySheets } from "@/components/lazy-sheets";
 import type { Health } from "@/components/ds";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
@@ -46,8 +45,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         </div>
       </div>
       <TabBar />
-      <CaptureSheet />
-      <SearchPalette />
+      <LazySheets />
       <GlobalEffects />
     </AppProvider>
   );

@@ -3,13 +3,15 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ChevronDown, CreditCard } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import dynamic from "next/dynamic";
 import { useApp } from "@/components/app-provider";
-import { Card, PanelHead } from "@/components/ds";
+import { Card, PanelHead, Skeleton } from "@/components/ds";
 import { CatIcon, MonthSwitcher, NewTxButton, QuickAdd, TxRow, useFin } from "@/components/fin/fin-ui";
 import { formatShort } from "@/lib/dates";
-import { brl, monthAbbr, type FinAccountDTO, type FinInvoiceDTO, type FinTxDTO } from "@/lib/fin-types";
+import { brl, type FinAccountDTO, type FinInvoiceDTO, type FinTxDTO } from "@/lib/fin-types";
 import { cn } from "@/lib/utils";
+
+const HistoryChart = dynamic(() => import("@/components/fin/history-chart").then((m) => m.HistoryChart), { ssr: false, loading: () => <Skeleton className="h-full w-full" /> });
 
 type Props = {
   month: string;
@@ -192,30 +194,7 @@ export function PainelView({ month, txs, open, history, accounts, invoices }: Pr
       <Card>
         <PanelHead title="Receitas e despesas · 12 meses" />
         <div className="h-[240px] px-2 pb-2 pt-3">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={history.map((h) => ({ ...h, label: monthAbbr(h.month) }))} margin={{ top: 4, right: 8, bottom: 0, left: 0 }} barGap={2}>
-              <CartesianGrid stroke="var(--line)" vertical={false} />
-              <XAxis dataKey="label" tick={{ fill: "var(--fg-3)", fontSize: 12 }} tickLine={false} axisLine={{ stroke: "var(--line)" }} interval="preserveStartEnd" minTickGap={6} />
-              <YAxis tick={{ fill: "var(--fg-3)", fontSize: 12 }} tickLine={false} axisLine={false} width={60} tickFormatter={(v: number) => brl(v, { compact: true }).replace(",00", "")} />
-              <Tooltip
-                cursor={{ fill: "var(--surface-2)" }}
-                content={({ active, payload }) => {
-                  const p = active && payload?.[0]?.payload ? (payload[0].payload as { label: string; income: number; expense: number }) : null;
-                  if (!p) return null;
-                  return (
-                    <div className="rounded-[10px] border border-line bg-surface px-3 py-2 text-[13px] shadow-[var(--shadow-sm)]">
-                      <b className="block">{p.label}</b>
-                      <span className="block text-green">Receitas {brl(p.income)}</span>
-                      <span className="block">Despesas {brl(p.expense)}</span>
-                      <span className={cn("block font-semibold", p.income - p.expense >= 0 ? "text-green" : "text-red")}>Resultado {brl(p.income - p.expense, { sign: true })}</span>
-                    </div>
-                  );
-                }}
-              />
-              <Bar dataKey="income" name="Receitas" fill="var(--green-solid)" radius={[4, 4, 0, 0]} maxBarSize={22} isAnimationActive={false} />
-              <Bar dataKey="expense" name="Despesas" fill="var(--ac)" radius={[4, 4, 0, 0]} maxBarSize={22} isAnimationActive={false} />
-            </BarChart>
-          </ResponsiveContainer>
+          <HistoryChart history={history} />
         </div>
         <p className="flex gap-4 px-4 pb-3 text-[13px] text-fg-3">
           <span className="inline-flex items-center gap-1.5">
