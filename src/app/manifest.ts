@@ -23,7 +23,7 @@ export default function manifest(): MetadataRoute.Manifest {
       action: "/financas/compartilhar",
       method: "POST",
       enctype: "multipart/form-data",
-      params: { title: "title", text: "text", files: [{ name: "file", accept: ["application/pdf", ".pdf"] }] },
+      params: { title: "title", text: "text", files: [{ name: "file", accept: ["application/pdf", ".pdf", "text/csv", ".csv", ".ofx", ".qfx", ".xlsx", "image/*"] }] },
     },
     shortcuts: [
       { name: "Capturar", url: "/hoje?capturar=1" },

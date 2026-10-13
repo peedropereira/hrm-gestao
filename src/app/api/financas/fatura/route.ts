@@ -6,7 +6,8 @@ import { getCategories, monthDate } from "@/lib/finance";
 import { addMonth } from "@/lib/fin-types";
 import { guessCategory } from "@/lib/fin-parse";
 import { norm } from "@/lib/nl-parse";
-import { matchWindow, parseInvoiceFromText, parseInvoicePdf } from "@/lib/invoice-pdf";
+import { matchWindow, parseInvoiceFromText } from "@/lib/invoice-pdf";
+import { kindOf, parseInvoiceFile } from "@/lib/invoice-files";
 
 // Lê o PDF da fatura e devolve as compras, com categoria sugerida e os fixos que correspondem.
 export const maxDuration = 60;
@@ -23,8 +24,8 @@ export async function POST(req: Request) {
   const month = String(form.get("month") ?? "");
   const pasted = String(form.get("text") ?? "").trim();
   if (!pasted) {
-    if (!(file instanceof File) || !/pdf/i.test(file.type || file.name)) return NextResponse.json({ error: "Envie o arquivo PDF da fatura ou cole o texto." }, { status: 400 });
-    if (file.size > 4 * 1024 * 1024) return NextResponse.json({ error: "PDF muito grande (máx. 4 MB)." }, { status: 400 });
+    if (!(file instanceof File) || !kindOf(file.name, file.type)) return NextResponse.json({ error: "Envie o arquivo da fatura (PDF, CSV, OFX, Excel, TXT ou foto) ou cole o texto." }, { status: 400 });
+    if (file.size > 4 * 1024 * 1024) return NextResponse.json({ error: "Arquivo muito grande (máx. 4 MB)." }, { status: 400 });
   } else if (pasted.length > 200000) return NextResponse.json({ error: "Texto muito grande." }, { status: 400 });
   if (!/^\d{4}-\d{2}$/.test(month)) return NextResponse.json({ error: "Escolha o mês da fatura." }, { status: 400 });
   const card = await db.finAccount.findFirst({ where: { id: cardId, ownerId, type: "CREDIT_CARD" } });
@@ -32,10 +33,11 @@ export async function POST(req: Request) {
 
   let parsed;
   try {
-    parsed = pasted ? await parseInvoiceFromText(pasted, month) : await parseInvoicePdf(new Uint8Array(await (file as File).arrayBuffer()), month);
+    parsed = pasted ? await parseInvoiceFromText(pasted, month) : await parseInvoiceFile(file as File, month);
   } catch (e) {
     console.error("fatura ilegível", e);
-    return NextResponse.json({ error: pasted ? "Não consegui entender o texto colado." : "Não consegui ler este PDF. Se for uma foto/escaneado, a leitura precisa da IA (ANTHROPIC_API_KEY)." }, { status: 422 });
+    const msg = e instanceof Error && /Formato|ANTHROPIC/.test(e.message) ? e.message : null;
+    return NextResponse.json({ error: msg ?? (pasted ? "Não consegui entender o texto colado." : "Não consegui ler este arquivo. Se for foto ou PDF escaneado, a leitura precisa da IA (ANTHROPIC_API_KEY).") }, { status: 422 });
   }
 
   // fixos do cartão que podem estar nesta fatura
@@ -78,6 +80,7 @@ export async function POST(req: Request) {
     }
     return { ...l, categoryId: guessCategory(l.description, categories, l.credit ? "INCOME" : "EXPENSE"), match };
   });
-  const pending = candidates.filter((c) => !used.has(c.id)).map((c) => ({ id: c.id, description: c.description, amount: Number(c.amount), date: dateOnlyToISO(c.date)! }));
+  // só avisa dos que ainda aguardam fatura (os que já estão nesta fatura não precisam de aviso)
+  const pending = candidates.filter((c) => !used.has(c.id) && c.cardPending).map((c) => ({ id: c.id, description: c.description, amount: Number(c.amount), date: dateOnlyToISO(c.date)! }));
   return NextResponse.json({ lines, total: parsed.total, source: parsed.source, pending });
 }

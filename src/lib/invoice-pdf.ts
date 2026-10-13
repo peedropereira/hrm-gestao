@@ -142,6 +142,12 @@ const TOOL = {
 const parseWithClaude = (buf: Uint8Array, invoice: string) =>
   askClaude({ type: "document", source: { type: "base64", media_type: "application/pdf", data: Buffer.from(buf).toString("base64") } }, invoice);
 
+/** Foto ou print da fatura (precisa de ANTHROPIC_API_KEY). */
+export const parseImageWithClaude = (buf: Uint8Array, mediaType: string, invoice: string) =>
+  ["image/jpeg", "image/png", "image/webp", "image/gif"].includes(mediaType)
+    ? askClaude({ type: "image", source: { type: "base64", media_type: mediaType, data: Buffer.from(buf).toString("base64") } }, invoice)
+    : Promise.resolve(null);
+
 const parseTextWithClaude = (text: string, invoice: string) => askClaude({ type: "text", text: `Texto copiado da fatura:\n\n${text.slice(0, 60000)}` }, invoice);
 
 async function askClaude(source: Record<string, unknown>, invoice: string): Promise<InvoiceParse | null> {

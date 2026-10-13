@@ -24,7 +24,9 @@ type Line = {
 };
 type Parsed = { lines: Line[]; total: number | null; source: "ia" | "texto"; pending: { id: string; description: string; amount: number; date: string }[] };
 
-const isPdf = (f: File) => f.type === "application/pdf" || /\.pdf$/i.test(f.name);
+/** Formatos aceitos: PDF, CSV, OFX/QFX, Excel, TXT e foto/print. */
+const ACCEPT = "application/pdf,.pdf,.csv,text/csv,.ofx,.qfx,.xlsx,.txt,text/plain,image/*";
+const isInvoiceFile = (f: File) => /\.(pdf|csv|ofx|qfx|xlsx|txt|jpe?g|png|webp)$/i.test(f.name) || /pdf|csv|ofx|spreadsheetml|text\/plain|^image\//.test(f.type);
 
 export function InvoiceImport({ card, onClose, initialFile, initialText }: { card?: FinAccountDTO; onClose: () => void; initialFile?: File; initialText?: string }) {
   const { today } = useApp();
@@ -45,11 +47,11 @@ export function InvoiceImport({ card, onClose, initialFile, initialText }: { car
 
   /** PDF colado (Ctrl+V), arrastado ou escolhido. */
   const takeFiles = (files: FileList | File[] | null | undefined) => {
-    const pdf = [...(files ?? [])].find(isPdf);
+    const pdf = [...(files ?? [])].find(isInvoiceFile);
     if (!pdf) return false;
     setFile(pdf);
     setMode("pdf");
-    toast.success(`PDF recebido: ${pdf.name}`);
+    toast.success(`Arquivo recebido: ${pdf.name}`);
     return true;
   };
 
@@ -69,15 +71,15 @@ export function InvoiceImport({ card, onClose, initialFile, initialText }: { car
     try {
       const items = await navigator.clipboard.read();
       for (const it of items) {
-        const type = it.types.find((t) => t === "application/pdf");
+        const type = it.types.find((t) => t === "application/pdf" || t.startsWith("image/"));
         if (type) {
           const blob = await it.getType(type);
-          setFile(new File([blob], "fatura-colada.pdf", { type }));
+          setFile(new File([blob], type === "application/pdf" ? "fatura-colada.pdf" : `fatura-colada.${type.split("/")[1]}`, { type }));
           setMode("pdf");
-          return void toast.success("PDF colado");
+          return void toast.success(type === "application/pdf" ? "PDF colado" : "Imagem colada");
         }
       }
-      toast("Não há PDF copiado. Copie o arquivo e use Ctrl+V nesta janela, ou arraste o PDF para cá.");
+      toast("Não há arquivo copiado. Copie o arquivo e use Ctrl+V nesta janela, ou arraste para cá.");
     } catch {
       toast("Use Ctrl+V nesta janela com o PDF copiado, ou arraste o arquivo para cá.");
     }
@@ -94,12 +96,12 @@ export function InvoiceImport({ card, onClose, initialFile, initialText }: { car
       fd.append("month", month);
       const res = await fetch("/api/financas/fatura", { method: "POST", body: fd });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Não foi possível ler o PDF.");
+      if (!res.ok) throw new Error(json.error ?? "Não foi possível ler o arquivo.");
       const lines: Line[] = json.lines.map((l: Omit<Line, "on">) => ({ ...l, on: true }));
-      if (!lines.length) throw new Error(mode === "pdf" ? "Não encontrei compras neste PDF. Confira se é a fatura do cartão." : "Não encontrei compras no texto. Copie a lista de lançamentos com datas e valores.");
+      if (!lines.length) throw new Error(mode === "pdf" ? "Não encontrei compras neste arquivo. Confira se é a fatura do cartão." : "Não encontrei compras no texto. Copie a lista de lançamentos com datas e valores.");
       setData({ ...json, lines });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível ler o PDF.");
+      toast.error(e instanceof Error ? e.message : "Não foi possível ler o arquivo.");
     } finally {
       setReading(false);
     }
@@ -131,7 +133,7 @@ export function InvoiceImport({ card, onClose, initialFile, initialText }: { car
     );
 
   return (
-    <Sheet open onClose={onClose} title="Importar fatura" description="Envie o PDF ou cole o texto da fatura: o sistema lê as compras e abate os fixos que já estão lançados." wide>
+    <Sheet open onClose={onClose} title="Importar fatura" description="Envie o arquivo (PDF, CSV, OFX, Excel ou foto) ou cole o texto: o sistema lê as compras e abate os fixos que já estão lançados." wide>
       {!data ? (
         <div className="grid gap-3.5">
           <div className="grid grid-cols-2 gap-3">
@@ -166,7 +168,7 @@ export function InvoiceImport({ card, onClose, initialFile, initialText }: { car
           <div className="grid grid-cols-2 gap-1 rounded-[12px] bg-surface-2 p-1" role="radiogroup" aria-label="Forma de importar">
             {(
               [
-                ["pdf", "Arquivo PDF"],
+                ["pdf", "Arquivo"],
                 ["texto", "Colar texto"],
               ] as const
             ).map(([k, l]) => (
@@ -211,7 +213,7 @@ export function InvoiceImport({ card, onClose, initialFile, initialText }: { car
               onDrop={(e) => {
                 e.preventDefault();
                 setDragging(false);
-                if (!takeFiles(e.dataTransfer.files)) toast.error("Solte um arquivo PDF.");
+                if (!takeFiles(e.dataTransfer.files)) toast.error("Formato não aceito. Use PDF, CSV, OFX, Excel, TXT ou foto.");
               }}
               className={cn(
                 "grid place-items-center gap-1.5 rounded-[14px] border-[1.5px] border-dashed px-4 py-7 text-center",
@@ -219,15 +221,15 @@ export function InvoiceImport({ card, onClose, initialFile, initialText }: { car
               )}
             >
               {file ? <FileText className="size-7 text-ac-text" /> : <Upload className="size-7 text-fg-3" />}
-              <b className="text-[16px] md:text-[14px]">{file ? file.name : dragging ? "Solte o PDF aqui" : "Escolher, arrastar ou colar o PDF"}</b>
-              <span className="text-[13px] text-fg-3">No computador: copie o arquivo e aperte Ctrl+V aqui. No Android: no app do banco, Compartilhar → Gestão PS.</span>
+              <b className="text-[16px] md:text-[14px]">{file ? file.name : dragging ? "Solte o arquivo aqui" : "Escolher, arrastar ou colar o arquivo"}</b>
+              <span className="text-[13px] text-fg-3">PDF, CSV, OFX, Excel (.xlsx), TXT ou foto/print. No computador: Ctrl+V aqui. No Android: Compartilhar → Gestão PS.</span>
             </button>
             <Button variant="secondary" size="sm" className="h-11 md:h-9" onClick={() => void pasteFromClipboard()}>
-              <ClipboardPaste /> Colar PDF copiado
+              <ClipboardPaste /> Colar arquivo copiado
             </Button>
           </div>
           )}
-          <input ref={input} type="file" accept="application/pdf,.pdf" className="hidden" onChange={(e) => takeFiles(e.target.files)} />
+          <input ref={input} type="file" accept={ACCEPT} className="hidden" onChange={(e) => takeFiles(e.target.files)} />
           <Button block disabled={(mode === "pdf" ? !file : !text.trim()) || reading} onClick={read}>
             {reading ? <Loader2 className="animate-spin" /> : <Sparkles />} {reading ? "Lendo a fatura…" : "Ler a fatura"}
           </Button>
@@ -240,7 +242,7 @@ export function InvoiceImport({ card, onClose, initialFile, initialText }: { car
             </span>
             <span className="font-semibold tabular-nums">
               Selecionado {brl(total)}
-              {data.total != null && <span className="ml-1 font-normal text-fg-3">(PDF: {brl(data.total)})</span>}
+              {data.total != null && <span className="ml-1 font-normal text-fg-3">(fatura: {brl(data.total)})</span>}
             </span>
           </div>
           {matched > 0 && <p className="text-[14px] text-fg-2">{matched} {matched === 1 ? "gasto fixo foi reconhecido" : "gastos fixos foram reconhecidos"} e será abatido nesta fatura (não duplica).</p>}
@@ -268,7 +270,7 @@ export function InvoiceImport({ card, onClose, initialFile, initialText }: { car
               Fixos no cartão não encontrados nesta fatura: {data.pending.map((p) => `${p.description} (${brl(p.amount)})`).join(", ")}. Eles continuam aguardando a próxima fatura ou outro cartão.
             </p>
           )}
-          <p className="text-[13px] text-fg-3">Leitura {data.source === "ia" ? "feita pela IA" : mode === "pdf" ? "pelo texto do PDF" : "do texto colado"}. Desmarque o que não for compra (pagamentos, tarifas que você não quer lançar).</p>
+          <p className="text-[13px] text-fg-3">Leitura {data.source === "ia" ? "feita pela IA" : mode === "pdf" ? "pelo conteúdo do arquivo" : "do texto colado"}. Desmarque o que não for compra (pagamentos, tarifas que você não quer lançar).</p>
           <div className="grid grid-cols-[auto_1fr] gap-2">
             <Button variant="secondary" onClick={() => setData(null)}>
               Voltar

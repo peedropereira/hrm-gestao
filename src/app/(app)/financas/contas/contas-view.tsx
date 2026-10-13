@@ -46,7 +46,7 @@ export function ContasView({ accounts, invoices, cardTx, awaiting }: { accounts:
       history.replaceState(null, "", location.pathname);
       if (!res) return;
       const name = decodeURIComponent(res.headers.get("x-nome") ?? "fatura.pdf");
-      setSharedFile(new File([await res.blob()], name, { type: "application/pdf" }));
+      setSharedFile(new File([await res.blob()], name, { type: res.headers.get("content-type") ?? "application/pdf" }));
       setImporting(null);
       await cache.delete("/fatura-compartilhada");
     })();
@@ -65,7 +65,7 @@ export function ContasView({ accounts, invoices, cardTx, awaiting }: { accounts:
         </p>
         <div className="flex gap-2">
           <Button variant="secondary" size="sm" className="h-11 md:h-9" onClick={() => setImporting(null)}>
-            <FileUp /> Importar fatura (PDF ou texto)
+            <FileUp /> Importar fatura
           </Button>
           <Button variant="secondary" size="sm" className="h-11 md:h-9" onClick={() => setForm({ type: "CREDIT_CARD" })}>
             <CreditCard /> Novo cartão
@@ -153,7 +153,7 @@ export function ContasView({ accounts, invoices, cardTx, awaiting }: { accounts:
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-[15px] text-fg-3">Nenhuma fatura em aberto.</p>
                   <Button variant="secondary" size="sm" className="h-11 md:h-9" onClick={() => setImporting(c)}>
-                    <FileUp /> Importar fatura (PDF ou texto)
+                    <FileUp /> Importar fatura
                   </Button>
                 </div>
               )}
