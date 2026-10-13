@@ -39,7 +39,61 @@ function money(s: string) {
   return Number(s.replace(/[^\d,-]/g, "").replace(",", "."));
 }
 
+const START = /^(\d{2})\s*[/.-]\s*(\d{2})\s+|^(\d{2})\s*[/.-]?\s*(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\b\s*/i;
+const AMOUNT_END = /(-\s*)?(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2})(\s*-)?\s*$/;
+
+/**
+ * Faturas em que a compra quebra em várias linhas (ex.: Bradesco/Amex):
+ *   "26/04 CENTAURO CE207 06/06 MOGI DAS" / "CRUZ" / "83,32"
+ *   "11/04 MERCADO*MERCADOLIVRE06/0" / "6" / "EXTREMA 34,50"
+ * Junta as linhas de cada compra (da data até o valor) antes de interpretar.
+ */
+function parseByRecords(text: string, invoice: string): InvoiceLine[] {
+  const rows = text.replace(/ /g, " ").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const records: string[] = [];
+  let cur: string | null = null;
+  for (const row of rows) {
+    if (START.test(row)) {
+      if (cur) records.push(cur);
+      cur = row;
+    } else if (cur !== null && !AMOUNT_END.test(cur)) {
+      // parcela cortada ("06/0" + "6") junta sem espaço
+      cur = /\d\/\d?$/.test(cur) && /^\d/.test(row) ? cur + row : `${cur} ${row}`;
+      if (cur.length > 220) cur = null; // não era uma compra
+    } else if (cur !== null) {
+      records.push(cur);
+      cur = null;
+    }
+  }
+  if (cur) records.push(cur);
+
+  const out: InvoiceLine[] = [];
+  for (const rec of records) {
+    const s = rec.match(START);
+    const a = rec.match(AMOUNT_END);
+    if (!s || !a || a.index === undefined) continue;
+    const dd = s[1] ?? s[3];
+    const mm = s[2] ?? MES[(s[4] ?? "").toUpperCase()];
+    if (!mm || Number(mm) > 12 || Number(dd) > 31) continue;
+    // descrição: entre a data e o valor (o último valor é o em R$; antes podem vir US$ e cotação)
+    let desc = rec
+      .slice(s[0].length, a.index)
+      .replace(/(\s+-?\d{1,3}(?:\.\d{3})*,\d{2,4})+\s*$/, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!desc || SKIP.test(desc)) continue;
+    const amount = money(a[2]);
+    if (!amount) continue;
+    const sp = splitInstallment(desc);
+    desc = sp.desc;
+    const credit = !!(a[1] || a[3]) || /\b(estorno|credito|crédito|reembolso|cashback)\b/i.test(desc);
+    out.push({ date: fullDate(dd, mm, invoice), description: sp.installment ? `${desc} (${sp.installment})` : desc, amount, credit, installment: sp.installment });
+  }
+  return out;
+}
+
 export function parseInvoiceText(text: string, invoice: string): InvoiceParse {
+  const byRecords = parseByRecords(text, invoice);
   const lines: InvoiceLine[] = [];
   const t = text.replace(/ /g, " ");
   const re = /(\d{2})(?:\s*[/.-]\s*(\d{2})|\s*[/.-]?\s*(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ))\b\s+(.{3,90}?)\s+(-\s*)?(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2})(\s*-)?(?=\s|$)/gi;
@@ -57,7 +111,9 @@ export function parseInvoiceText(text: string, invoice: string): InvoiceParse {
     lines.push({ date: fullDate(m[1], mm, invoice), description: installment ? `${desc} (${installment})` : desc, amount, credit, installment });
   }
   const tot = t.match(/total\s+(?:da\s+fatura|a\s+pagar|desta\s+fatura)[^\d]{0,30}(\d{1,3}(?:\.\d{3})*,\d{2})/i);
-  return { lines, total: tot ? money(tot[1]) : null, source: "texto" };
+  // fica com a leitura que achou mais compras (linha a linha ou juntando linhas quebradas)
+  const best = byRecords.length >= lines.length ? byRecords : lines;
+  return { lines: best, total: tot ? money(tot[1]) : null, source: "texto" };
 }
 
 /**

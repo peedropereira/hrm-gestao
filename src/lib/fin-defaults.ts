@@ -44,6 +44,7 @@ export const CATEGORY_HINTS: [RegExp, string][] = [
   [/\b(restaurante|resta|almoco|jantar|lanche|lanchonete|snack|rodosnack|pizza|pizzaria|churrascaria|cafe|cafeteria|bistro|burger|hamburgueria|grill|sushi|outback|madero|mcdonalds|bk|habibs|starbucks|zigpay)\b/, "Restaurantes"],
   [/\b(ifood|delivery|rappi)\b/, "Delivery"],
   [/\b(supermercado|atacadao|assai|carrefour|pao de acucar|sonda|sams club)\b/, "Supermercado"],
+  [/\b(cabelo|barbeiro|barbearia|salao|manicure|esmalteria)\b/, "Cuidados pessoais"],
   [/\b(gasolina|combustivel|etanol|alcool|diesel|posto|abasteci|shell|ipiranga|petrobras)/, "Combustível"],
   [/\b(uber|99|99app|taxi|cabify)\b/, "Aplicativos de transporte"],
   [/\b(estacionamento|pedagio|sem parar|zona azul|conectcar|veloe)\b/, "Estacionamento / Pedágio"],
