@@ -1,0 +1,69 @@
+// Categorias iniciais das finanças pessoais (grupo → categorias). Tudo pode ser editado depois.
+
+export type DefaultGroup = { group: string; icon: string; color: string; items: string[] };
+
+export const EXPENSE_GROUPS: DefaultGroup[] = [
+  { group: "Moradia", icon: "house", color: "#0e6e7e", items: ["Aluguel / Financiamento", "Condomínio", "IPTU", "Energia elétrica", "Água e esgoto", "Gás", "Internet / TV", "Manutenção da casa", "Diarista / Funcionária", "Móveis e utensílios"] },
+  { group: "Alimentação", icon: "utensils", color: "#c2410c", items: ["Supermercado", "Feira / Hortifrúti", "Padaria", "Restaurantes", "Delivery", "Açougue"] },
+  { group: "Transporte", icon: "car", color: "#2563eb", items: ["Combustível", "Parcela do carro", "Seguro do carro", "IPVA / Licenciamento", "Manutenção do carro", "Estacionamento / Pedágio", "Aplicativos de transporte", "Multas"] },
+  { group: "Saúde", icon: "heart-pulse", color: "#dc2626", items: ["Plano de saúde", "Plano odontológico", "Farmácia", "Consultas e exames", "Academia / Esporte", "Terapia"] },
+  { group: "Educação", icon: "graduation-cap", color: "#7c3aed", items: ["Escola / Faculdade", "Cursos", "Material escolar", "Livros"] },
+  { group: "Família e filhos", icon: "baby", color: "#db2777", items: ["Mesada", "Atividades dos filhos", "Ajuda a familiares", "Pensão"] },
+  { group: "Contas e assinaturas", icon: "receipt", color: "#0891b2", items: ["Celular", "Streaming", "Assinaturas e apps", "Seguro de vida", "Tarifas bancárias", "Anuidade de cartão"] },
+  { group: "Pessoal", icon: "shirt", color: "#9333ea", items: ["Roupas e calçados", "Cuidados pessoais", "Presentes", "Eletrônicos"] },
+  { group: "Lazer", icon: "palmtree", color: "#16a34a", items: ["Viagens", "Passeios e eventos", "Bares", "Hobbies"] },
+  { group: "Pets", icon: "paw-print", color: "#a16207", items: ["Ração", "Veterinário", "Banho e tosa"] },
+  { group: "Impostos e taxas", icon: "landmark", color: "#475569", items: ["Imposto de renda", "Outros impostos", "Taxas e cartório"] },
+  { group: "Dívidas e empréstimos", icon: "credit-card", color: "#b91c1c", items: ["Empréstimo pessoal", "Consignado", "Juros e encargos", "Parcelamentos"] },
+  { group: "Investimentos", icon: "piggy-bank", color: "#15803d", items: ["Aportes", "Previdência privada", "Reserva de emergência"] },
+  { group: "Doações", icon: "hand-heart", color: "#e11d48", items: ["Igreja / Dízimo", "Doações"] },
+  { group: "Outros", icon: "tag", color: "#64748b", items: ["Outros gastos"] },
+];
+
+export const INCOME_GROUPS: DefaultGroup[] = [
+  { group: "Trabalho", icon: "briefcase", color: "#15803d", items: ["Salário", "13º salário", "Férias", "PLR / Bônus", "Horas extras"] },
+  { group: "Renda extra", icon: "sparkles", color: "#0e7490", items: ["Freelance / Consultoria", "Vendas", "Aluguéis recebidos"] },
+  { group: "Investimentos", icon: "trending-up", color: "#16a34a", items: ["Rendimentos", "Dividendos", "Resgates"] },
+  { group: "Outras receitas", icon: "coins", color: "#64748b", items: ["Reembolsos", "Presentes recebidos", "Restituição de IR", "Outras receitas"] },
+];
+
+/** Palavras que indicam a categoria ao lançar por texto ou voz ("mercado 230"). */
+export const CATEGORY_HINTS: [RegExp, string][] = [
+  [/\b(mercado|supermercado|atacad|assai|carrefour|compras do mes)\b/, "Supermercado"],
+  [/\b(feira|hortifruti|sacolao)\b/, "Feira / Hortifrúti"],
+  [/\b(padaria|pao)\b/, "Padaria"],
+  [/\b(restaurante|almoco|jantar|lanche|pizza|churrascaria)\b/, "Restaurantes"],
+  [/\b(ifood|delivery|rappi)\b/, "Delivery"],
+  [/\b(gasolina|combustivel|etanol|alcool|diesel|posto|abasteci)/, "Combustível"],
+  [/\b(uber|99|taxi)\b/, "Aplicativos de transporte"],
+  [/\b(estacionamento|pedagio|sem parar|zona azul)\b/, "Estacionamento / Pedágio"],
+  [/\b(farmacia|remedio|drogaria)\b/, "Farmácia"],
+  [/\b(medico|consulta|exame|dentista|laboratorio)\b/, "Consultas e exames"],
+  [/\b(academia|smartfit|natacao)\b/, "Academia / Esporte"],
+  [/\b(luz|energia|enel|eletropaulo|edp)\b/, "Energia elétrica"],
+  [/\b(agua|sabesp|esgoto)\b/, "Água e esgoto"],
+  [/\b(gas|comgas|botijao)\b/, "Gás"],
+  [/\b(internet|vivo fibra|claro|net)\b/, "Internet / TV"],
+  [/\b(celular|telefone|tim|recarga)\b/, "Celular"],
+  [/\b(netflix|spotify|prime|disney|hbo|max|globoplay|youtube|streaming)\b/, "Streaming"],
+  [/\b(aluguel|financiamento da casa|prestacao da casa)\b/, "Aluguel / Financiamento"],
+  [/\b(condominio)\b/, "Condomínio"],
+  [/\b(iptu)\b/, "IPTU"],
+  [/\b(ipva|licenciamento)\b/, "IPVA / Licenciamento"],
+  [/\b(seguro do carro|seguro auto)\b/, "Seguro do carro"],
+  [/\b(escola|faculdade|mensalidade)\b/, "Escola / Faculdade"],
+  [/\b(curso)\b/, "Cursos"],
+  [/\b(roupa|calcado|tenis|sapato)\b/, "Roupas e calçados"],
+  [/\b(cabelo|barbeiro|salao|manicure)\b/, "Cuidados pessoais"],
+  [/\b(presente)\b/, "Presentes"],
+  [/\b(tv|televisao|notebook|computador|fone|tablet|eletronico)\b/, "Eletrônicos"],
+  [/\b(viagem|hotel|passagem)\b/, "Viagens"],
+  [/\b(cinema|show|ingresso|passeio)\b/, "Passeios e eventos"],
+  [/\b(bar|cerveja|chopp)\b/, "Bares"],
+  [/\b(racao|veterinario|pet)\b/, "Ração"],
+  [/\b(salario)\b/, "Salário"],
+  [/\b(plr|bonus)\b/, "PLR / Bônus"],
+  [/\b(rendimento|juros recebidos)\b/, "Rendimentos"],
+  [/\b(reembolso)\b/, "Reembolsos"],
+  [/\b(dizimo|igreja|oferta)\b/, "Igreja / Dízimo"],
+];

@@ -16,6 +16,7 @@ import {
   Target,
   TrendingUp,
   User,
+  Wallet,
   WifiOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -30,6 +31,7 @@ const NAV = [
   { href: "/acoes", label: "Ações", icon: ListChecks, count: "overdue" as const },
   { href: "/agenda", label: "Agenda", icon: Calendar },
   { href: "/setores/pessoal", label: "Pessoal", icon: User },
+  { href: "/financas", label: "Finanças", icon: Wallet },
   { href: "/setores", label: "Setores", icon: LayoutGrid },
   { href: "/metas", label: "Metas", icon: Target },
   { href: "/revisao", label: "Revisão semanal", icon: CalendarCheck },

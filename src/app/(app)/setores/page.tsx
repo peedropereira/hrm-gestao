@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireUser } from "@/lib/session";
 import { getKpiSnapshots, getOpenActions, getPeople, getSectorHealth, getSectors } from "@/lib/data";
-import { Target } from "lucide-react";
+import { Target, Wallet } from "lucide-react";
 import { Card, HealthLabel, SectorTile } from "@/components/ds";
 import { NewSectorButton } from "./sector-forms";
 
@@ -42,6 +42,17 @@ export default async function SectorsPage() {
                 <p className="mt-0.5 text-[14px] text-fg-2 md:text-[13px]">
                   Seus assuntos fora da fábrica · {personalOpen} {personalOpen === 1 ? "ação aberta" : "ações abertas"}
                 </p>
+              </div>
+            </Card>
+          </Link>
+          <Link href="/financas" className="mt-2.5 block md:hidden">
+            <Card className="flex items-center gap-3 p-3.5 transition-colors hover:border-line-strong">
+              <span className="grid size-11 place-items-center rounded-[12px] bg-green-bg text-green">
+                <Wallet className="size-6" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <b className="text-[17px] font-semibold leading-tight">Finanças</b>
+                <p className="mt-0.5 text-[14px] text-fg-2">Gastos, fixos, cartões e orçamento</p>
               </div>
             </Card>
           </Link>

@@ -5,6 +5,7 @@ import { getOccurrences, localTime } from "@/lib/agenda";
 import { getOpenActions, getSettings, isOverdue } from "@/lib/data";
 import { addDaysISO, todayISO } from "@/lib/dates";
 import { untilLabel } from "@/lib/reminder-options";
+import { billsSummary } from "@/lib/finance";
 
 // Avisos no celular (Web Push). As chaves VAPID ficam só nas variáveis de ambiente.
 
@@ -104,13 +105,15 @@ export async function runMorningDigest(now = new Date()) {
     const settings = await getSettings(u.id);
     if (!settings.morningDigest) continue;
     if (!(await claim(`resumo:${u.id}:${today}`))) continue;
-    const [occ, open] = await Promise.all([getOccurrences(u.id, today, today), getOpenActions(u.id)]);
+    const [occ, open, bills] = await Promise.all([getOccurrences(u.id, today, today), getOpenActions(u.id), billsSummary(u.id, today)]);
     const dueToday = open.filter((a) => a.dueDate === today).length;
     const overdue = open.filter((a) => isOverdue(a, today)).length;
     const parts = [
       occ.length ? `${occ.length} ${occ.length === 1 ? "compromisso" : "compromissos"}` : "nenhum compromisso",
       `${dueToday} ${dueToday === 1 ? "ação para hoje" : "ações para hoje"}`,
       ...(overdue ? [`${overdue} ${overdue === 1 ? "atrasada" : "atrasadas"}`] : []),
+      ...(bills.due ? [`${bills.due} ${bills.due === 1 ? "conta vence" : "contas vencem"} hoje`] : []),
+      ...(bills.late ? [`${bills.late} ${bills.late === 1 ? "conta atrasada" : "contas atrasadas"}`] : []),
     ];
     const list = occ
       .slice(0, 4)

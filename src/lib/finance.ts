@@ -1,0 +1,226 @@
+import "server-only";
+import { db } from "@/lib/db";
+import { dateOnlyToISO, todayISO } from "@/lib/dates";
+import { EXPENSE_GROUPS, INCOME_GROUPS } from "@/lib/fin-defaults";
+import {
+  addMonth,
+  dayInMonth,
+  invoiceMonthOf,
+  type FinAccountDTO,
+  type FinCategoryDTO,
+  type FinInvoiceDTO,
+  type FinRecurringDTO,
+  type FinTxDTO,
+} from "@/lib/fin-types";
+
+const num = (d: unknown) => (d == null ? 0 : Number(d));
+export const monthDate = (m: string) => new Date(`${m}-01T00:00:00Z`);
+export const isoDate = (iso: string) => new Date(`${iso}T00:00:00Z`);
+
+/** Primeira vez: cria categorias e contas básicas. */
+export async function ensureFinanceSetup(ownerId: string) {
+  const [cats, accs] = await Promise.all([db.finCategory.count({ where: { ownerId } }), db.finAccount.count({ where: { ownerId } })]);
+  if (!cats) {
+    const data = [
+      ...EXPENSE_GROUPS.flatMap((g, gi) => g.items.map((name, i) => ({ ownerId, name, kind: "EXPENSE" as const, group: g.group, icon: g.icon, color: g.color, order: gi * 100 + i }))),
+      ...INCOME_GROUPS.flatMap((g, gi) => g.items.map((name, i) => ({ ownerId, name, kind: "INCOME" as const, group: g.group, icon: g.icon, color: g.color, order: gi * 100 + i }))),
+    ];
+    await db.finCategory.createMany({ data, skipDuplicates: true });
+  }
+  if (!accs) {
+    await db.finAccount.createMany({
+      data: [
+        { ownerId, name: "Conta corrente", type: "CHECKING", color: "#0e6e7e", order: 0 },
+        { ownerId, name: "Dinheiro", type: "CASH", color: "#15803d", order: 1 },
+      ],
+    });
+  }
+}
+
+/** Gera os lançamentos dos fixos nos meses pedidos (sem duplicar). */
+export async function ensureRecurring(ownerId: string, months: string[]) {
+  const today = todayISO();
+  const recs = await db.finRecurring.findMany({ where: { ownerId, active: true }, include: { account: true } });
+  const data = [];
+  for (const r of recs) {
+    const start = dateOnlyToISO(r.startMonth)!.slice(0, 7);
+    const end = r.endMonth ? dateOnlyToISO(r.endMonth)!.slice(0, 7) : null;
+    for (const m of months) {
+      if (m < start || (end && m > end)) continue;
+      const date = dayInMonth(m, r.dayOfMonth);
+      const card = r.account?.type === "CREDIT_CARD";
+      data.push({
+        ownerId,
+        kind: r.kind,
+        description: r.description,
+        amount: r.amount,
+        date: isoDate(date),
+        paid: r.autoPaid && date <= today,
+        paidAt: r.autoPaid && date <= today ? isoDate(date) : null,
+        categoryId: r.categoryId,
+        accountId: r.accountId,
+        recurringId: r.id,
+        recurringMonth: monthDate(m),
+        invoiceMonth: card ? monthDate(invoiceMonthOf(date, r.account!.closingDay, r.account!.dueDay)) : null,
+      });
+    }
+  }
+  if (data.length) await db.finTransaction.createMany({ data, skipDuplicates: true });
+}
+
+type TxRow = Awaited<ReturnType<typeof db.finTransaction.findMany>>[number];
+
+export function toTxDTO(t: TxRow): FinTxDTO {
+  return {
+    id: t.id,
+    kind: t.kind,
+    description: t.description,
+    amount: num(t.amount),
+    date: dateOnlyToISO(t.date)!,
+    paid: t.paid,
+    paidAt: dateOnlyToISO(t.paidAt),
+    categoryId: t.categoryId,
+    accountId: t.accountId,
+    toAccountId: t.toAccountId,
+    recurringId: t.recurringId,
+    installmentNo: t.installmentNo,
+    installmentTotal: t.installmentTotal,
+    installmentGroup: t.installmentGroup,
+    invoiceMonth: t.invoiceMonth ? dateOnlyToISO(t.invoiceMonth)!.slice(0, 7) : null,
+    notes: t.notes,
+  };
+}
+
+export async function getCategories(ownerId: string): Promise<FinCategoryDTO[]> {
+  const rows = await db.finCategory.findMany({ where: { ownerId }, orderBy: [{ kind: "asc" }, { order: "asc" }, { name: "asc" }] });
+  return rows.map((c) => ({ id: c.id, name: c.name, kind: c.kind === "INCOME" ? "INCOME" : "EXPENSE", group: c.group, icon: c.icon, color: c.color, budget: c.budget == null ? null : num(c.budget), archived: c.archived }));
+}
+
+export async function getRecurring(ownerId: string): Promise<FinRecurringDTO[]> {
+  const rows = await db.finRecurring.findMany({ where: { ownerId }, orderBy: [{ active: "desc" }, { dayOfMonth: "asc" }] });
+  return rows.map((r) => ({
+    id: r.id,
+    kind: r.kind === "INCOME" ? "INCOME" : "EXPENSE",
+    description: r.description,
+    amount: num(r.amount),
+    categoryId: r.categoryId,
+    accountId: r.accountId,
+    dayOfMonth: r.dayOfMonth,
+    startMonth: dateOnlyToISO(r.startMonth)!.slice(0, 7),
+    endMonth: r.endMonth ? dateOnlyToISO(r.endMonth)!.slice(0, 7) : null,
+    variable: r.variable,
+    autoPaid: r.autoPaid,
+    notes: r.notes,
+    active: r.active,
+  }));
+}
+
+/**
+ * Contas com saldo e faturas dos cartões.
+ * Conta comum: saldo inicial + o que já foi pago/recebido.
+ * Cartão: saldo inicial − compras + pagamentos de fatura (negativo = em aberto).
+ */
+export async function getAccounts(ownerId: string) {
+  const [accounts, txs] = await Promise.all([
+    db.finAccount.findMany({ where: { ownerId }, orderBy: [{ archived: "asc" }, { order: "asc" }, { createdAt: "asc" }] }),
+    db.finTransaction.findMany({
+      where: { ownerId, deletedAt: null },
+      select: { kind: true, amount: true, paid: true, accountId: true, toAccountId: true, invoiceMonth: true, date: true },
+    }),
+  ]);
+  const card = new Set(accounts.filter((a) => a.type === "CREDIT_CARD").map((a) => a.id));
+  const bal = new Map(accounts.map((a) => [a.id, num(a.initialBalance)]));
+  const inv = new Map<string, FinInvoiceDTO>();
+  for (const t of txs) {
+    const v = num(t.amount);
+    if (t.accountId && bal.has(t.accountId)) {
+      const isCard = card.has(t.accountId);
+      if (isCard || t.paid) {
+        if (t.kind === "INCOME") bal.set(t.accountId, bal.get(t.accountId)! + v);
+        else bal.set(t.accountId, bal.get(t.accountId)! - v);
+      }
+      if (isCard && t.kind !== "TRANSFER" && t.invoiceMonth) {
+        const m = dateOnlyToISO(t.invoiceMonth)!.slice(0, 7);
+        const key = `${t.accountId}:${m}`;
+        const cur = inv.get(key) ?? { accountId: t.accountId, month: m, dueDate: "", total: 0, paid: true, count: 0 };
+        cur.total += t.kind === "INCOME" ? -v : v;
+        cur.count++;
+        if (!t.paid) cur.paid = false;
+        inv.set(key, cur);
+      }
+    }
+    if (t.kind === "TRANSFER" && t.paid && t.toAccountId && bal.has(t.toAccountId)) bal.set(t.toAccountId, bal.get(t.toAccountId)! + v);
+  }
+  const accDTO: FinAccountDTO[] = accounts.map((a) => ({
+    id: a.id,
+    name: a.name,
+    type: a.type,
+    color: a.color,
+    initialBalance: num(a.initialBalance),
+    closingDay: a.closingDay,
+    dueDay: a.dueDay,
+    creditLimit: a.creditLimit == null ? null : num(a.creditLimit),
+    archived: a.archived,
+    balance: Math.round(bal.get(a.id)! * 100) / 100,
+  }));
+  const byId = new Map(accDTO.map((a) => [a.id, a]));
+  const invoices = [...inv.values()]
+    .map((i) => ({ ...i, total: Math.round(i.total * 100) / 100, dueDate: dayInMonth(i.month, byId.get(i.accountId)?.dueDay ?? 10) }))
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  return { accounts: accDTO, invoices };
+}
+
+/** Totais de receitas e despesas por mês (para o gráfico de evolução). */
+export async function getHistory(ownerId: string, lastMonth: string, n = 12) {
+  const first = addMonth(lastMonth, -(n - 1));
+  const rows = await db.finTransaction.findMany({
+    where: { ownerId, deletedAt: null, kind: { in: ["INCOME", "EXPENSE"] }, date: { gte: monthDate(first), lt: monthDate(addMonth(lastMonth, 1)) } },
+    select: { kind: true, amount: true, date: true },
+  });
+  const out = Array.from({ length: n }, (_, i) => ({ month: addMonth(first, i), income: 0, expense: 0 }));
+  for (const r of rows) {
+    const m = dateOnlyToISO(r.date)!.slice(0, 7);
+    const slot = out.find((x) => x.month === m);
+    if (!slot) continue;
+    if (r.kind === "INCOME") slot.income += num(r.amount);
+    else slot.expense += num(r.amount);
+  }
+  return out.map((x) => ({ ...x, income: Math.round(x.income), expense: Math.round(x.expense) }));
+}
+
+/** Lançamentos de um mês (pela data). */
+export async function getMonthTx(ownerId: string, month: string) {
+  const rows = await db.finTransaction.findMany({
+    where: { ownerId, deletedAt: null, date: { gte: monthDate(month), lt: monthDate(addMonth(month, 1)) } },
+    orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+  });
+  return rows.map(toTxDTO);
+}
+
+/** Contas a pagar/receber em aberto até o fim do mês (inclui atrasadas de meses anteriores), fora cartão. */
+export async function getOpenItems(ownerId: string, month: string) {
+  const rows = await db.finTransaction.findMany({
+    where: {
+      ownerId,
+      deletedAt: null,
+      paid: false,
+      kind: { in: ["EXPENSE", "INCOME"] },
+      date: { lt: monthDate(addMonth(month, 1)) },
+      OR: [{ accountId: null }, { account: { type: { not: "CREDIT_CARD" } } }],
+    },
+    orderBy: { date: "asc" },
+    take: 200,
+  });
+  return rows.map(toTxDTO);
+}
+
+/** Para o resumo da manhã: contas que vencem hoje e atrasadas. */
+export async function billsSummary(ownerId: string, today: string) {
+  const rows = await db.finTransaction.findMany({
+    where: { ownerId, deletedAt: null, paid: false, kind: "EXPENSE", date: { lte: isoDate(today) }, OR: [{ accountId: null }, { account: { type: { not: "CREDIT_CARD" } } }] },
+    select: { amount: true, date: true, description: true },
+  });
+  const due = rows.filter((r) => dateOnlyToISO(r.date) === today);
+  const late = rows.filter((r) => dateOnlyToISO(r.date)! < today);
+  return { due: due.length, dueTotal: due.reduce((t, r) => t + num(r.amount), 0), late: late.length, first: due[0]?.description ?? null };
+}

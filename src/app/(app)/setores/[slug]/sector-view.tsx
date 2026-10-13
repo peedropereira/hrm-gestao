@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronLeft, MessageCircle, Paperclip, Pencil, Phone, Plus, Trash2, UserPlus } from "lucide-react";
+import { ChevronLeft, Wallet, MessageCircle, Paperclip, Pencil, Phone, Plus, Trash2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { useApp } from "@/components/app-provider";
 import { CheckButton, FollowUpLine, SwipeCard } from "@/components/action-bits";
@@ -241,7 +241,12 @@ export function SectorView(p: Props) {
         </div>
         {/* Líder (não se aplica ao Pessoal) */}
         {s.personal ? (
-          <p className="px-5 text-[15px] text-fg-3 md:ml-auto md:px-0 md:text-[14px]">Seus assuntos fora da fábrica: casa, família, saúde, finanças.</p>
+          <div className="flex flex-wrap items-center gap-3 px-5 md:ml-auto md:px-0">
+            <p className="text-[15px] text-fg-3 md:text-[14px]">Seus assuntos fora da fábrica: casa, família, saúde.</p>
+            <Link href="/financas" className="inline-flex h-11 items-center gap-2 rounded-[12px] bg-green-bg px-3.5 text-[15px] font-semibold text-green md:h-9 md:text-[13px]">
+              <Wallet className="size-[18px]" /> Finanças pessoais
+            </Link>
+          </div>
         ) : (
         <div className="mx-4 grid gap-3 rounded-[14px] border border-line bg-surface p-3.5 shadow-card md:mx-0 md:ml-auto md:flex md:items-center md:gap-3 md:rounded-none md:border-0 md:border-l md:p-0 md:pl-5 md:shadow-none">
           {leader ? (

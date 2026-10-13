@@ -521,3 +521,116 @@ model Event {
   @@index([ownerId, startsAt])
   @@index([parentId])
 }
+
+// ---------- Finanças pessoais ----------
+
+enum FinAccountType {
+  CHECKING // conta corrente
+  SAVINGS // poupança
+  CASH // dinheiro
+  CREDIT_CARD // cartão de crédito
+  INVESTMENT // investimentos
+  OTHER
+}
+
+enum FinKind {
+  EXPENSE
+  INCOME
+  TRANSFER
+}
+
+model FinAccount {
+  id             String         @id @default(cuid())
+  ownerId        String
+  name           String
+  type           FinAccountType @default(CHECKING)
+  initialBalance Decimal        @default(0) @db.Decimal(14, 2)
+  color          String         @default("#0e6e7e")
+  closingDay     Int? // cartão: dia do fechamento da fatura
+  dueDay         Int? // cartão: dia do vencimento
+  creditLimit    Decimal?       @db.Decimal(14, 2)
+  archived       Boolean        @default(false)
+  order          Int            @default(0)
+  createdAt      DateTime       @default(now())
+
+  transactions FinTransaction[] @relation("FinTxAccount")
+  incoming     FinTransaction[] @relation("FinTxToAccount")
+  recurring    FinRecurring[]
+
+  @@index([ownerId])
+}
+
+model FinCategory {
+  id       String   @id @default(cuid())
+  ownerId  String
+  name     String
+  kind     FinKind  @default(EXPENSE) // EXPENSE ou INCOME
+  group    String // grupo: Moradia, Transporte, Saúde…
+  icon     String   @default("tag")
+  color    String   @default("#64748b")
+  budget   Decimal? @db.Decimal(14, 2) // orçamento mensal
+  order    Int      @default(0)
+  archived Boolean  @default(false)
+
+  transactions FinTransaction[]
+  recurring    FinRecurring[]
+
+  @@unique([ownerId, kind, group, name])
+  @@index([ownerId])
+}
+
+// Gastos e receitas fixos: geram um lançamento por mês.
+model FinRecurring {
+  id          String       @id @default(cuid())
+  ownerId     String
+  kind        FinKind      @default(EXPENSE)
+  description String
+  amount      Decimal      @db.Decimal(14, 2)
+  categoryId  String?
+  category    FinCategory? @relation(fields: [categoryId], references: [id])
+  accountId   String?
+  account     FinAccount?  @relation(fields: [accountId], references: [id])
+  dayOfMonth  Int          @default(5)
+  startMonth  DateTime     @db.Date // primeiro dia do mês inicial
+  endMonth    DateTime?    @db.Date // último mês (inclusive), ex.: fim de financiamento
+  variable    Boolean      @default(false) // valor muda todo mês (luz, água)
+  autoPaid    Boolean      @default(false) // débito automático: já nasce pago
+  notes       String?
+  active      Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+
+  transactions FinTransaction[]
+
+  @@index([ownerId])
+}
+
+model FinTransaction {
+  id               String        @id @default(cuid())
+  ownerId          String
+  kind             FinKind
+  description      String
+  amount           Decimal       @db.Decimal(14, 2) // sempre positivo
+  date             DateTime      @db.Date // data da compra / vencimento
+  paid             Boolean       @default(false)
+  paidAt           DateTime?     @db.Date
+  categoryId       String?
+  category         FinCategory?  @relation(fields: [categoryId], references: [id])
+  accountId        String?
+  account          FinAccount?   @relation("FinTxAccount", fields: [accountId], references: [id])
+  toAccountId      String? // transferência: conta de destino
+  toAccount        FinAccount?   @relation("FinTxToAccount", fields: [toAccountId], references: [id])
+  recurringId      String?
+  recurring        FinRecurring? @relation(fields: [recurringId], references: [id], onDelete: SetNull)
+  recurringMonth   DateTime?     @db.Date
+  installmentGroup String? // compra parcelada
+  installmentNo    Int?
+  installmentTotal Int?
+  invoiceMonth     DateTime?     @db.Date // cartão: mês da fatura
+  notes            String?
+  createdAt        DateTime      @default(now())
+  deletedAt        DateTime?
+
+  @@unique([recurringId, recurringMonth])
+  @@index([ownerId, date])
+  @@index([accountId, invoiceMonth])
+}
