@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Archive, CreditCard, FileUp, Landmark, Loader2, Pencil, Plus, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { useApp } from "@/components/app-provider";
@@ -24,6 +24,33 @@ export function ContasView({ accounts, invoices, cardTx, awaiting }: { accounts:
   const [form, setForm] = useState<Partial<FinAccountDTO> | null>(null);
   const [paying, setPaying] = useState<FinInvoiceDTO | null>(null);
   const [importing, setImporting] = useState<FinAccountDTO | null | undefined>(undefined);
+  const [sharedFile, setSharedFile] = useState<File | undefined>(undefined);
+  const [sharedText, setSharedText] = useState<string | undefined>(undefined);
+
+  // PDF compartilhado pelo Android: o service worker guardou o arquivo; abre a importação com ele
+  useEffect(() => {
+    const q = new URLSearchParams(location.search).get("importar");
+    if ((q !== "compartilhado" && q !== "texto") || !("caches" in window)) return;
+    void (async () => {
+      const cache = await caches.open("gps-compartilhado");
+      if (q === "texto") {
+        const t = await cache.match("/texto-compartilhado");
+        history.replaceState(null, "", location.pathname);
+        if (!t) return;
+        setSharedText(await t.text());
+        setImporting(null);
+        await cache.delete("/texto-compartilhado");
+        return;
+      }
+      const res = await cache.match("/fatura-compartilhada");
+      history.replaceState(null, "", location.pathname);
+      if (!res) return;
+      const name = decodeURIComponent(res.headers.get("x-nome") ?? "fatura.pdf");
+      setSharedFile(new File([await res.blob()], name, { type: "application/pdf" }));
+      setImporting(null);
+      await cache.delete("/fatura-compartilhada");
+    })();
+  }, []);
   const [showArchived, setShowArchived] = useState(false);
   const live = accounts.filter((a) => !a.archived);
   const banks = live.filter((a) => a.type !== "CREDIT_CARD");
@@ -190,7 +217,18 @@ export function ContasView({ accounts, invoices, cardTx, awaiting }: { accounts:
         </Card>
       )}
 
-      {importing !== undefined && <InvoiceImport card={importing ?? undefined} onClose={() => setImporting(undefined)} />}
+      {importing !== undefined && (
+        <InvoiceImport
+          card={importing ?? undefined}
+          initialFile={sharedFile}
+          initialText={sharedText}
+          onClose={() => {
+            setImporting(undefined);
+            setSharedFile(undefined);
+            setSharedText(undefined);
+          }}
+        />
+      )}
       {form && <AccForm key={form.id ?? form.type} initial={form} onClose={() => setForm(null)} />}
       {paying && <PaySheet invoice={paying} card={accounts.find((a) => a.id === paying.accountId)!} onClose={() => setPaying(null)} />}
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { ClipboardPaste, FileText, Loader2, Sparkles, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useApp } from "@/components/app-provider";
@@ -24,7 +24,9 @@ type Line = {
 };
 type Parsed = { lines: Line[]; total: number | null; source: "ia" | "texto"; pending: { id: string; description: string; amount: number; date: string }[] };
 
-export function InvoiceImport({ card, onClose }: { card?: FinAccountDTO; onClose: () => void }) {
+const isPdf = (f: File) => f.type === "application/pdf" || /\.pdf$/i.test(f.name);
+
+export function InvoiceImport({ card, onClose, initialFile, initialText }: { card?: FinAccountDTO; onClose: () => void; initialFile?: File; initialText?: string }) {
   const { today } = useApp();
   const { accounts } = useFin();
   const cards = accounts.filter((a) => a.type === "CREDIT_CARD" && !a.archived);
@@ -32,13 +34,54 @@ export function InvoiceImport({ card, onClose }: { card?: FinAccountDTO; onClose
   const selected = cards.find((c) => c.id === cardId);
   const defaultMonth = selected ? invoiceMonthOf(today, selected.closingDay, selected.dueDay) : addMonth(today.slice(0, 7), 1);
   const [month, setMonth] = useState(defaultMonth);
-  const [file, setFile] = useState<File | null>(null);
-  const [mode, setMode] = useState<"pdf" | "texto">("pdf");
-  const [text, setText] = useState("");
+  const [file, setFile] = useState<File | null>(initialFile ?? null);
+  const [mode, setMode] = useState<"pdf" | "texto">(initialText ? "texto" : "pdf");
+  const [text, setText] = useState(initialText ?? "");
   const [reading, setReading] = useState(false);
   const [data, setData] = useState<Parsed | null>(null);
   const [pending, start] = useTransition();
+  const [dragging, setDragging] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+
+  /** PDF colado (Ctrl+V), arrastado ou escolhido. */
+  const takeFiles = (files: FileList | File[] | null | undefined) => {
+    const pdf = [...(files ?? [])].find(isPdf);
+    if (!pdf) return false;
+    setFile(pdf);
+    setMode("pdf");
+    toast.success(`PDF recebido: ${pdf.name}`);
+    return true;
+  };
+
+  // Ctrl+V com um PDF copiado (ex.: copiado no Explorer/Finder)
+  useEffect(() => {
+    if (data) return;
+    const onPaste = (e: ClipboardEvent) => {
+      if (takeFiles(e.clipboardData?.files)) e.preventDefault();
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
+
+  /** Botão "Colar PDF": lê a área de transferência (Chrome/Edge). */
+  const pasteFromClipboard = async () => {
+    try {
+      const items = await navigator.clipboard.read();
+      for (const it of items) {
+        const type = it.types.find((t) => t === "application/pdf");
+        if (type) {
+          const blob = await it.getType(type);
+          setFile(new File([blob], "fatura-colada.pdf", { type }));
+          setMode("pdf");
+          return void toast.success("PDF colado");
+        }
+      }
+      toast("Não há PDF copiado. Copie o arquivo e use Ctrl+V nesta janela, ou arraste o PDF para cá.");
+    } catch {
+      toast("Use Ctrl+V nesta janela com o PDF copiado, ou arraste o arquivo para cá.");
+    }
+  };
 
   const read = async () => {
     if (!cardId || (mode === "pdf" ? !file : !text.trim())) return;
@@ -156,17 +199,35 @@ export function InvoiceImport({ card, onClose }: { card?: FinAccountDTO; onClose
               <span className="text-[13px] text-fg-3">No app do banco: abra a fatura, selecione os lançamentos, copie e cole aqui. Também serve texto de e-mail ou WhatsApp.</span>
             </div>
           ) : (
-          <button
-            type="button"
-            onClick={() => input.current?.click()}
-            className={cn("grid place-items-center gap-1.5 rounded-[14px] border-[1.5px] border-dashed px-4 py-7 text-center", file ? "border-ac bg-ac-soft" : "border-line-strong hover:bg-surface-2")}
-          >
-            {file ? <FileText className="size-7 text-ac-text" /> : <Upload className="size-7 text-fg-3" />}
-            <b className="text-[16px] md:text-[14px]">{file ? file.name : "Escolher o PDF da fatura"}</b>
-            <span className="text-[13px] text-fg-3">Baixe no app do banco (Fatura → Baixar PDF). Máx. 4 MB.</span>
-          </button>
+          <div className="grid gap-2">
+            <button
+              type="button"
+              onClick={() => input.current?.click()}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragging(true);
+              }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragging(false);
+                if (!takeFiles(e.dataTransfer.files)) toast.error("Solte um arquivo PDF.");
+              }}
+              className={cn(
+                "grid place-items-center gap-1.5 rounded-[14px] border-[1.5px] border-dashed px-4 py-7 text-center",
+                dragging ? "border-ac bg-ac-soft" : file ? "border-ac bg-ac-soft" : "border-line-strong hover:bg-surface-2",
+              )}
+            >
+              {file ? <FileText className="size-7 text-ac-text" /> : <Upload className="size-7 text-fg-3" />}
+              <b className="text-[16px] md:text-[14px]">{file ? file.name : dragging ? "Solte o PDF aqui" : "Escolher, arrastar ou colar o PDF"}</b>
+              <span className="text-[13px] text-fg-3">No computador: copie o arquivo e aperte Ctrl+V aqui. No Android: no app do banco, Compartilhar → Gestão PS.</span>
+            </button>
+            <Button variant="secondary" size="sm" className="h-11 md:h-9" onClick={() => void pasteFromClipboard()}>
+              <ClipboardPaste /> Colar PDF copiado
+            </Button>
+          </div>
           )}
-          <input ref={input} type="file" accept="application/pdf,.pdf" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+          <input ref={input} type="file" accept="application/pdf,.pdf" className="hidden" onChange={(e) => takeFiles(e.target.files)} />
           <Button block disabled={(mode === "pdf" ? !file : !text.trim()) || reading} onClick={read}>
             {reading ? <Loader2 className="animate-spin" /> : <Sparkles />} {reading ? "Lendo a fatura…" : "Ler a fatura"}
           </Button>

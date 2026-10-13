@@ -18,6 +18,13 @@ export default function manifest(): MetadataRoute.Manifest {
       { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
       { src: "/icons/maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
+    // Android: "Compartilhar → Gestão PS" com o PDF da fatura
+    share_target: {
+      action: "/financas/compartilhar",
+      method: "POST",
+      enctype: "multipart/form-data",
+      params: { title: "title", text: "text", files: [{ name: "file", accept: ["application/pdf", ".pdf"] }] },
+    },
     shortcuts: [
       { name: "Capturar", url: "/hoje?capturar=1" },
       { name: "Falar", url: "/hoje?falar=1" },

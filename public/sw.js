@@ -2,7 +2,7 @@
 // - Arquivos estáticos do Next: cache primeiro (são versionados).
 // - Páginas e dados: rede primeiro; sem sinal, mostra a última versão carregada.
 // - API nunca é guardada em cache.
-const VERSION = "gps-v3";
+const VERSION = "gps-v4";
 const STATIC = `${VERSION}-static`;
 const PAGES = `${VERSION}-pages`;
 const OFFLINE_URL = "/offline";
@@ -24,6 +24,31 @@ self.addEventListener("message", (event) => {
   if (event.data === "limpar-cache") {
     event.waitUntil(caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k)))));
   }
+});
+
+// PDF compartilhado pelo Android (share_target): guarda e abre a importação de fatura.
+const SHARE_CACHE = "gps-compartilhado";
+self.addEventListener("fetch", (event) => {
+  const url = new URL(event.request.url);
+  if (event.request.method !== "POST" || url.pathname !== "/financas/compartilhar") return;
+  event.respondWith(
+    (async () => {
+      try {
+        const form = await event.request.formData();
+        const file = form.getAll("file").find((f) => f && typeof f === "object");
+        const cache = await caches.open(SHARE_CACHE);
+        if (file) {
+          await cache.put("/fatura-compartilhada", new Response(file, { headers: { "content-type": file.type || "application/pdf", "x-nome": encodeURIComponent(file.name || "fatura.pdf") } }));
+          return Response.redirect("/financas/contas?importar=compartilhado", 303);
+        }
+        const text = [form.get("title"), form.get("text")].filter(Boolean).join("\n");
+        if (text) await cache.put("/texto-compartilhado", new Response(text));
+        return Response.redirect("/financas/contas?importar=texto", 303);
+      } catch {
+        return Response.redirect("/financas/contas", 303);
+      }
+    })(),
+  );
 });
 
 self.addEventListener("fetch", (event) => {
