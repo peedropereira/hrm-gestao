@@ -9,7 +9,21 @@ import { addMonth } from "@/lib/fin-types";
 export type InvoiceLine = { date: string; description: string; amount: number; credit: boolean; installment: string | null };
 export type InvoiceParse = { lines: InvoiceLine[]; total: number | null; source: "ia" | "texto" };
 
-const SKIP = /\b(pagamento|pgto|pag(?:to)?\s+efetuado|saldo anterior|total d|total a pagar|limite|encargos? (?:de|do) financiamento|juros do rotativo|vencimento|fechamento|cotacao|iof total)\b/i;
+/**
+ * Separa a parcela do nome: no fim ("LOJA 02/10", "LOJA PARC 2 DE 10") ou no meio, como na Amex
+ * ("MIDEA COM BR 07/12 ITAJAI", "MERCADOLIVRE*MERCADO05/06 SAO PAULO").
+ */
+export function splitInstallment(desc: string): { desc: string; installment: string | null } {
+  const m = desc.match(/(?:\s|parc(?:ela)?\.?\s*|(?<=[a-z*]))(\d{1,2})\s*(?:\/|de)\s*(\d{1,2})(?=\s|$)/i);
+  if (!m || m.index === undefined) return { desc, installment: null };
+  const a = Number(m[1]);
+  const b = Number(m[2]);
+  if (a < 1 || b < 2 || a > b) return { desc, installment: null };
+  const clean = `${desc.slice(0, m.index)} ${desc.slice(m.index + m[0].length)}`.replace(/\s+/g, " ").replace(/[\s\-–:*]+$/, "").trim();
+  return { desc: clean || desc, installment: `${a}/${b}` };
+}
+
+const SKIP = /\b(pagamento|pgto|pagto|deb(?:ito)?\.? em c\/?c|debito em conta|pag(?:amento)? fatura|pag(?:to)?\s+efetuado|saldo anterior|total d|total a pagar|limite|encargos? (?:de|do) financiamento|juros do rotativo|vencimento|fechamento|cotacao|iof total)\b/i;
 
 /** Ano da compra: meses depois do mês da fatura são do ano anterior. */
 function fullDate(dd: string, mm: string, invoice: string) {
@@ -34,12 +48,9 @@ export function parseInvoiceText(text: string, invoice: string): InvoiceParse {
     if (!mm || Number(mm) > 12 || Number(m[1]) > 31) continue;
     let desc = m[4].replace(/\s+/g, " ").trim();
     if (SKIP.test(desc)) continue;
-    const inst = desc.match(/(?:parc(?:ela)?\.?\s*)?(\d{1,2})\s*(?:\/|de)\s*(\d{1,2})\s*$/i);
-    let installment: string | null = null;
-    if (inst && Number(inst[1]) <= Number(inst[2])) {
-      installment = `${inst[1]}/${inst[2]}`;
-      desc = desc.slice(0, inst.index).trim();
-    }
+    const sp = splitInstallment(desc);
+    const installment = sp.installment;
+    desc = sp.desc;
     const amount = money(m[6]);
     if (!amount) continue;
     const credit = !!(m[5] || m[7]) || /\b(estorno|credito|crédito|reembolso|cashback)\b/i.test(desc);
@@ -84,12 +95,9 @@ export function parseInvoiceLoose(text: string, invoice: string): InvoiceParse {
     if (!desc || SKIP.test(desc)) continue;
     const amount = money(m[4]);
     if (!amount) continue;
-    const inst = desc.match(/(?:parc(?:ela)?\.?\s*)?(\d{1,2})\s*(?:\/|de)\s*(\d{1,2})\s*$/i);
-    let installment: string | null = null;
-    if (inst && Number(inst[1]) <= Number(inst[2])) {
-      installment = `${inst[1]}/${inst[2]}`;
-      desc = desc.slice(0, inst.index).trim();
-    }
+    const sp = splitInstallment(desc);
+    const installment = sp.installment;
+    desc = sp.desc;
     const credit = !!(m[2] || m[3] || m[5]) || /\b(estorno|credito|crédito|reembolso|cashback)\b/i.test(desc);
     lines.push({ date, description: installment ? `${desc} (${installment})` : desc, amount, credit, installment });
   }

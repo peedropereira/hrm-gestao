@@ -1,6 +1,6 @@
 import "server-only";
 import { norm } from "@/lib/nl-parse";
-import { parseInvoiceFromText, parseInvoicePdf, parseImageWithClaude, type InvoiceLine, type InvoiceParse } from "@/lib/invoice-pdf";
+import { parseInvoiceFromText, parseInvoicePdf, parseImageWithClaude, splitInstallment, type InvoiceLine, type InvoiceParse } from "@/lib/invoice-pdf";
 
 // Importação de fatura a partir de qualquer arquivo comum:
 // PDF, CSV (Nubank, Inter, C6, Itaú…), OFX/QFX (exportação padrão dos bancos), Excel (.xlsx), TXT e foto/print.
@@ -24,7 +24,7 @@ function decode(buf: Uint8Array) {
   return utf.includes("�") ? new TextDecoder("latin1").decode(buf) : utf;
 }
 
-const SKIP = /\b(pagamento|pgto|pag(?:to)?\s+efetuado|pagamento recebido|saldo anterior|total d|limite)\b/i;
+const SKIP = /\b(pagamento|pgto|pagto|deb(?:ito)?\.? em c\/?c|debito em conta|pag(?:amento)? fatura|pag(?:to)?\s+efetuado|pagamento recebido|saldo anterior|total d|limite)\b/i;
 const CREDIT = /\b(estorno|credito|crédito|reembolso|cashback|devolu)/i;
 
 // ---------- valores e datas ----------
@@ -152,11 +152,9 @@ export function parseRows(rows: unknown[][], invoice: string): InvoiceParse | nu
     const credit = !isPurchase || CREDIT.test(x.desc);
     let desc = x.desc;
     let installment = x.inst;
-    const m = desc.match(/(?:parc(?:ela)?\.?\s*)?(\d{1,2})\s*(?:\/|de)\s*(\d{1,2})\s*$/i);
-    if (!installment && m && Number(m[1]) <= Number(m[2])) {
-      installment = `${m[1]}/${m[2]}`;
-      desc = desc.slice(0, m.index).trim().replace(/[\s\-–:]+$/, "");
-    }
+    const sp = splitInstallment(desc);
+    desc = sp.desc;
+    installment = installment ?? sp.installment;
     lines.push({ date: x.date, description: installment ? `${desc} (${installment})` : desc, amount: Math.round(Math.abs(x.value) * 100) / 100, credit, installment });
   }
   return { lines, total: null, source: "texto" };

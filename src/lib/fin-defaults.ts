@@ -10,7 +10,7 @@ export const EXPENSE_GROUPS: DefaultGroup[] = [
   { group: "Educação", icon: "graduation-cap", color: "#7c3aed", items: ["Escola / Faculdade", "Cursos", "Material escolar", "Livros"] },
   { group: "Família e filhos", icon: "baby", color: "#db2777", items: ["Mesada", "Atividades dos filhos", "Ajuda a familiares", "Pensão"] },
   { group: "Contas e assinaturas", icon: "receipt", color: "#0891b2", items: ["Celular", "Streaming", "Assinaturas e apps", "Seguro de vida", "Tarifas bancárias", "Anuidade de cartão"] },
-  { group: "Pessoal", icon: "shirt", color: "#9333ea", items: ["Roupas e calçados", "Cuidados pessoais", "Presentes", "Eletrônicos"] },
+  { group: "Pessoal", icon: "shirt", color: "#9333ea", items: ["Roupas e calçados", "Cuidados pessoais", "Presentes", "Eletrônicos", "Compras online"] },
   { group: "Lazer", icon: "palmtree", color: "#16a34a", items: ["Viagens", "Passeios e eventos", "Bares", "Hobbies"] },
   { group: "Pets", icon: "paw-print", color: "#a16207", items: ["Ração", "Veterinário", "Banho e tosa"] },
   { group: "Impostos e taxas", icon: "landmark", color: "#475569", items: ["Imposto de renda", "Outros impostos", "Taxas e cartório"] },
@@ -29,6 +29,9 @@ export const INCOME_GROUPS: DefaultGroup[] = [
 
 /** Palavras que indicam a categoria ao lançar por texto ou voz ("mercado 230"). */
 export const CATEGORY_HINTS: [RegExp, string][] = [
+  // lojas online primeiro ("MERCADOLIVRE*MERCADO" não é supermercado)
+  [/\b(amazon prime|prime video)\b/, "Streaming"],
+  [/\b(mercadolivre|mercado livre|shopee|amazon|amz|aliexpress|shein|temu|magalu|magazine luiza|casas ?bahia|casasbahiacom|americanas|submarino|midea|nuv|kabum|fast shop|ponto frio)\b/, "Compras online"],
   [/\b(mercado|supermercado|atacad|assai|carrefour|compras do mes)\b/, "Supermercado"],
   [/\b(feira|hortifruti|sacolao)\b/, "Feira / Hortifrúti"],
   [/\b(padaria|pao)\b/, "Padaria"],
@@ -59,7 +62,9 @@ export const CATEGORY_HINTS: [RegExp, string][] = [
   [/\b(cabelo|barbeiro|salao|manicure)\b/, "Cuidados pessoais"],
   [/\b(presente)\b/, "Presentes"],
   [/\b(tv|televisao|notebook|computador|fone|tablet|eletronico)\b/, "Eletrônicos"],
-  [/\b(viagem|hotel|passagem)\b/, "Viagens"],
+  [/\b(viagem|viajar\w*|hotel|hoteis|passagem|azul linhas|azul|latam|gol linhas|gol|decolar|booking|airbnb|cvc|123milhas|maxmilhas|pousada|resort)\b/, "Viagens"],
+  [/\b(petz|cobasi|petlove|pet shop|petshop|caramelopet\w*)\b/, "Ração"],
+  [/\b(g4 ?educacao|g4educacao|udemy|alura|hotmart|coursera|kiwify|eduzz)\b/, "Cursos"],
   [/\b(cinema|show|ingresso|passeio)\b/, "Passeios e eventos"],
   [/\b(bar|cerveja|chopp)\b/, "Bares"],
   [/\b(racao|veterinario|pet)\b/, "Ração"],
