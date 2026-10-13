@@ -7,6 +7,7 @@
 import { addDaysISO } from "./dates";
 import { norm } from "./nl-parse";
 import { CATEGORY_HINTS } from "./fin-defaults";
+import { merchantCategory } from "./fin-merchants";
 import { parseMoney, type FinAccountDTO, type FinCategoryDTO } from "./fin-types";
 
 export type FinParsed = {
@@ -202,11 +203,22 @@ export function parseFixedList(text: string, categories: FinCategoryDTO[]): Fixe
 export function guessCategory(description: string, categories: FinCategoryDTO[], kind: "EXPENSE" | "INCOME" = "EXPENSE") {
   const pool = categories.filter((c) => !c.archived && c.kind === kind);
   const n = norm(description);
+  // 1º nome do estabelecimento (mais específico; pega nomes grudados e prefixos de maquininha)
+  const byMerchant = kind === "EXPENSE" ? merchantCategory(description) : null;
+  if (byMerchant && byMerchant !== "Outros gastos") {
+    const c = pool.find((x) => x.name === byMerchant);
+    if (c) return c.id;
+  }
+  // 2º palavras gerais (luz, aluguel, salário…)
   for (const [re, name] of CATEGORY_HINTS) {
     if (re.test(n)) {
       const c = pool.find((x) => x.name === name);
       if (c) return c.id;
     }
+  }
+  if (byMerchant) {
+    const c = pool.find((x) => x.name === byMerchant);
+    if (c) return c.id;
   }
   return pool.find((x) => norm(x.name).split(/[\s/]+/).some((w) => w.length > 3 && new RegExp(`\\b${w}\\b`).test(n)))?.id ?? null;
 }

@@ -75,3 +75,52 @@ export async function writeWithClaude(system: string, prompt: string, maxTokens 
     clearTimeout(timer);
   }
 }
+
+/**
+ * Categoriza estabelecimentos que as regras não reconheceram (precisa de ANTHROPIC_API_KEY).
+ * Devolve { descrição → nome da categoria }.
+ */
+export async function categorizeWithAI(descriptions: string[], categoryNames: string[]): Promise<Record<string, string>> {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key || !descriptions.length) return {};
+  const list = [...new Set(descriptions)].slice(0, 200);
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify({
+        model: process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001",
+        max_tokens: 4000,
+        tools: [
+          {
+            name: "categorizar",
+            description: "Associa cada compra de cartão a uma categoria.",
+            input_schema: {
+              type: "object",
+              properties: {
+                itens: {
+                  type: "array",
+                  items: { type: "object", properties: { descricao: { type: "string" }, categoria: { type: "string", enum: [...categoryNames, "?"] } }, required: ["descricao", "categoria"] },
+                },
+              },
+              required: ["itens"],
+            },
+          },
+        ],
+        tool_choice: { type: "tool", name: "categorizar" },
+        messages: [
+          {
+            role: "user",
+            content: `Compras de cartão de crédito de uma pessoa em Mogi das Cruzes/SP. Deduza pelo nome do estabelecimento a categoria mais provável. Use "?" só se for impossível deduzir.\n\n${list.join("\n")}`,
+          },
+        ],
+      }),
+    });
+    if (!res.ok) return {};
+    const json = (await res.json()) as { content?: { type: string; input?: { itens: { descricao: string; categoria: string }[] } }[] };
+    const itens = json.content?.find((c) => c.type === "tool_use")?.input?.itens ?? [];
+    return Object.fromEntries(itens.filter((i) => i.categoria !== "?" && categoryNames.includes(i.categoria)).map((i) => [i.descricao, i.categoria]));
+  } catch {
+    return {};
+  }
+}

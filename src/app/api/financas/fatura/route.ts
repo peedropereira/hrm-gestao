@@ -5,6 +5,7 @@ import { dateOnlyToISO } from "@/lib/dates";
 import { getCategories, monthDate } from "@/lib/finance";
 import { addMonth } from "@/lib/fin-types";
 import { descKey, guessCategory } from "@/lib/fin-parse";
+import { categorizeWithAI } from "@/lib/ai";
 import { norm } from "@/lib/nl-parse";
 import { matchWindow, parseInvoiceFromText } from "@/lib/invoice-pdf";
 import { kindOf, parseInvoiceFile } from "@/lib/invoice-files";
@@ -89,6 +90,13 @@ export async function POST(req: Request) {
     const knownOk = known && categories.find((c) => c.id === known && c.kind === kind && !c.archived);
     return { ...l, categoryId: knownOk ? known : guessCategory(l.description, categories, kind), match };
   });
+  // o que as regras não reconheceram: pergunta à IA (se houver chave)
+  const unknown = lines.filter((l) => !l.categoryId && !l.match && !l.credit);
+  if (unknown.length) {
+    const expense = categories.filter((c) => c.kind === "EXPENSE" && !c.archived);
+    const map = await categorizeWithAI(unknown.map((l) => l.description), expense.map((c) => c.name));
+    for (const l of unknown) l.categoryId = expense.find((c) => c.name === map[l.description])?.id ?? null;
+  }
   // só avisa dos que ainda aguardam fatura (os que já estão nesta fatura não precisam de aviso)
   const pending = candidates.filter((c) => !used.has(c.id) && c.cardPending).map((c) => ({ id: c.id, description: c.description, amount: Number(c.amount), date: dateOnlyToISO(c.date)! }));
   return NextResponse.json({ lines, total: parsed.total, source: parsed.source, pending });

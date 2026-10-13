@@ -6,8 +6,9 @@ import { db } from "@/lib/db";
 import { actionUser } from "@/lib/session";
 import { dateOnlyToISO, todayISO } from "@/lib/dates";
 import { addMonth, dayInMonth, invoiceMonthOf } from "@/lib/fin-types";
-import { isoDate, monthDate } from "@/lib/finance";
-import { descKey } from "@/lib/fin-parse";
+import { getCategories, isoDate, monthDate } from "@/lib/finance";
+import { aiConfig, categorizeWithAI } from "@/lib/ai";
+import { descKey, guessCategory } from "@/lib/fin-parse";
 import { fail, refreshAll, type Result } from "./_shared";
 
 const id = z.string().min(1).max(40);
@@ -555,6 +556,44 @@ export async function setTxCategory(txId: string, categoryId: string | null, sim
       return { ok: true, data: { count: 0 } };
     }
     return applyCategoryToSimilar(t.id, cat);
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Categoriza sozinho o que está sem categoria: aprende com o que você já fez, depois o nome do estabelecimento e, se houver, a IA. */
+export async function autoCategorize(): Promise<Result<{ done: number; left: number }>> {
+  try {
+    const user = await actionUser();
+    const cats = await getCategories(user.id);
+    const learned = new Map<string, string>();
+    for (const t of await db.finTransaction.findMany({ where: { ownerId: user.id, deletedAt: null, categoryId: { not: null } }, select: { description: true, categoryId: true }, orderBy: { createdAt: "asc" } }))
+      learned.set(descKey(t.description), t.categoryId!);
+    const todo = await db.finTransaction.findMany({ where: { ownerId: user.id, deletedAt: null, categoryId: null, kind: { in: ["EXPENSE", "INCOME"] } }, select: { id: true, description: true, kind: true } });
+    const updates = new Map<string, string[]>();
+    const unknown: { id: string; description: string }[] = [];
+    for (const t of todo) {
+      const kind = t.kind === "INCOME" ? "INCOME" : "EXPENSE";
+      const l = learned.get(descKey(t.description));
+      const cat = (l && cats.some((c) => c.id === l && c.kind === kind && !c.archived) ? l : null) ?? guessCategory(t.description, cats, kind);
+      if (cat) updates.set(cat, [...(updates.get(cat) ?? []), t.id]);
+      else if (kind === "EXPENSE") unknown.push(t);
+    }
+    if (unknown.length && aiConfig().write) {
+      const expense = cats.filter((c) => c.kind === "EXPENSE" && !c.archived);
+      const map = await categorizeWithAI(unknown.map((u) => u.description), expense.map((c) => c.name));
+      for (const u of unknown) {
+        const c = expense.find((x) => x.name === map[u.description]);
+        if (c) updates.set(c.id, [...(updates.get(c.id) ?? []), u.id]);
+      }
+    }
+    let done = 0;
+    for (const [categoryId, ids] of updates) {
+      await db.finTransaction.updateMany({ where: { id: { in: ids }, ownerId: user.id }, data: { categoryId } });
+      done += ids.length;
+    }
+    refreshAll();
+    return { ok: true, data: { done, left: todo.length - done } };
   } catch (e) {
     return fail(e);
   }

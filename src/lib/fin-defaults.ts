@@ -10,7 +10,7 @@ export const EXPENSE_GROUPS: DefaultGroup[] = [
   { group: "Educação", icon: "graduation-cap", color: "#7c3aed", items: ["Escola / Faculdade", "Cursos", "Material escolar", "Livros"] },
   { group: "Família e filhos", icon: "baby", color: "#db2777", items: ["Mesada", "Atividades dos filhos", "Ajuda a familiares", "Pensão"] },
   { group: "Contas e assinaturas", icon: "receipt", color: "#0891b2", items: ["Celular", "Streaming", "Assinaturas e apps", "Seguro de vida", "Tarifas bancárias", "Anuidade de cartão"] },
-  { group: "Pessoal", icon: "shirt", color: "#9333ea", items: ["Roupas e calçados", "Cuidados pessoais", "Presentes", "Eletrônicos", "Compras online"] },
+  { group: "Pessoal", icon: "shirt", color: "#9333ea", items: ["Roupas e calçados", "Cuidados pessoais", "Presentes", "Eletrônicos", "Compras e lojas"] },
   { group: "Lazer", icon: "palmtree", color: "#16a34a", items: ["Viagens", "Passeios e eventos", "Bares", "Hobbies"] },
   { group: "Pets", icon: "paw-print", color: "#a16207", items: ["Ração", "Veterinário", "Banho e tosa"] },
   { group: "Impostos e taxas", icon: "landmark", color: "#475569", items: ["Imposto de renda", "Outros impostos", "Taxas e cartório"] },
@@ -31,8 +31,8 @@ export const INCOME_GROUPS: DefaultGroup[] = [
 export const CATEGORY_HINTS: [RegExp, string][] = [
   // lojas online primeiro ("MERCADOLIVRE*MERCADO" não é supermercado)
   [/\b(amazon prime|prime video)\b/, "Streaming"],
-  [/\b(mercadolivre|mercado livre|shopee|amazon|amz|aliexpress|shein|temu|magalu|magazine luiza|casas ?bahia|casasbahiacom|americanas|submarino|midea|nuv|kabum|fast shop|ponto frio)\b/, "Compras online"],
-  [/\b(tiktok ?sh\w*|tiktok shop)\b/, "Compras online"],
+  [/\b(mercadolivre|mercado livre|shopee|amazon|amz|aliexpress|shein|temu|magalu|magazine luiza|casas ?bahia|casasbahiacom|americanas|submarino|midea|nuv|kabum|fast shop|ponto frio)\b/, "Compras e lojas"],
+  [/\b(tiktok ?sh\w*|tiktok shop)\b/, "Compras e lojas"],
   [/\b(iof|multa por fatura|juros|encargos?|anuidade diferenciada)\b/, "Juros e encargos"],
   [/\b(ifd|ifood)\b/, "Delivery"],
   [/\b(playstation|psn|xbox|nintendo|steam|yuupgames)\b/, "Hobbies"],
@@ -58,7 +58,7 @@ export const CATEGORY_HINTS: [RegExp, string][] = [
   [/\b(celular|telefone|tim|recarga)\b/, "Celular"],
   [/\b(netflix|spotify|prime|disney|hbo|max|globoplay|youtube|deezer|paramount|premiere|streaming)\b/, "Streaming"],
   [/\b(apple\.com|icloud|google one|claude|anthropic|openai|chatgpt|microsoft|adobe|canva|livelo|smiles)\b/, "Assinaturas e apps"],
-  [/\b(aluguel|financiamento da casa|prestacao da casa)\b/, "Aluguel / Financiamento"],
+  [/\b(aluguel|financiamento da casa|prestacao da casa|parcela da casa|financiamento imobiliario)\b/, "Aluguel / Financiamento"],
   [/\b(condominio)\b/, "Condomínio"],
   [/\b(iptu)\b/, "IPTU"],
   [/\b(ipva|licenciamento)\b/, "IPVA / Licenciamento"],

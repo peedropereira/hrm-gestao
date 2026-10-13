@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { Search } from "lucide-react";
+import { useState, useTransition } from "react";
+import { Loader2, Search, Sparkles } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/button";
+import { autoCategorize } from "@/app/actions/finance";
 import { Card, EmptyState } from "@/components/ds";
 import { MonthSwitcher, NewTxButton, QuickAdd, TxRow, useFin } from "@/components/fin/fin-ui";
 import { norm } from "@/lib/nl-parse";
@@ -24,6 +27,7 @@ export function LancView({ month, txs }: { month: string; txs: FinTxDTO[] }) {
   const [filter, setFilter] = useState<(typeof FILTERS)[number][0]>("todos");
   const [q, setQ] = useState("");
   const [acc, setAcc] = useState("");
+  const [catPending, startCat] = useTransition();
 
   const isCard = (t: FinTxDTO) => t.cardPending || accById(t.accountId)?.type === "CREDIT_CARD";
   const shown = txs.filter((t) => {
@@ -109,10 +113,32 @@ export function LancView({ month, txs }: { month: string; txs: FinTxDTO[] }) {
         ))}
       </div>
 
-      {uncategorized > 0 && filter !== "semcat" && (
-        <button type="button" onClick={() => setFilter("semcat")} className="rounded-[12px] bg-amber-bg px-4 py-2.5 text-left text-[14px] text-fg">
-          <b>{uncategorized}</b> {uncategorized === 1 ? "lançamento sem categoria" : "lançamentos sem categoria"} neste mês. <span className="font-semibold text-amber">Categorizar agora</span>
-        </button>
+      {uncategorized > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-[12px] bg-amber-bg px-4 py-2.5 text-[14px] text-fg">
+          <span className="min-w-0 flex-1">
+            <b>{uncategorized}</b> {uncategorized === 1 ? "lançamento sem categoria" : "lançamentos sem categoria"} neste mês.
+          </span>
+          <Button
+            size="sm"
+            className="h-10 md:h-8"
+            disabled={catPending}
+            onClick={() =>
+              startCat(async () => {
+                const r = await autoCategorize();
+                if (!r.ok || !r.data) return void toast.error(r.ok ? "Erro." : r.error);
+                toast.success(r.data.done ? `${r.data.done} categorizados automaticamente${r.data.left ? ` · ${r.data.left} para você escolher` : ""}` : "Não reconheci os restantes: escolha a categoria de cada um (os iguais vão junto).");
+                if (r.data.left) setFilter("semcat");
+              })
+            }
+          >
+            {catPending ? <Loader2 className="animate-spin" /> : <Sparkles />} Categorizar automaticamente
+          </Button>
+          {filter !== "semcat" && (
+            <Button variant="secondary" size="sm" className="h-10 md:h-8" onClick={() => setFilter("semcat")}>
+              Escolher manualmente
+            </Button>
+          )}
+        </div>
       )}
 
       {invoices.map(({ k, acc: a, list }) => (
