@@ -128,6 +128,8 @@ export function CatIcon({ cat, size = 34, kind }: { cat?: { icon: string; color:
 export const TABS = [
   ["/financas", "Painel"],
   ["/financas/lancamentos", "Lançamentos"],
+  ["/financas/relatorios", "Relatórios"],
+  ["/financas/planejamento", "Planejamento"],
   ["/financas/fixos", "Fixos"],
   ["/financas/contas", "Contas e cartões"],
   ["/financas/categorias", "Categorias"],

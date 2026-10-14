@@ -136,3 +136,60 @@ export function invoiceMonthOf(date: string, closingDay: number | null, dueDay: 
   const closeMonth = Number(date.slice(8, 10)) > closing ? addMonth(month, 1) : month;
   return dueDay && dueDay <= closing ? addMonth(closeMonth, 1) : closeMonth;
 }
+
+// ---------- relatórios ----------
+
+/** Lançamento enxuto para relatórios (month = mês em que conta: fatura no cartão, data no resto). */
+export type ReportTx = {
+  kind: "EXPENSE" | "INCOME";
+  amount: number;
+  date: string;
+  month: string;
+  categoryId: string | null;
+  description: string;
+  recurring: boolean;
+  installment: boolean;
+  card: boolean;
+  paid: boolean;
+};
+
+export type FinGoalDTO = {
+  id: string;
+  name: string;
+  target: number;
+  saved: number;
+  deadline: string | null;
+  color: string;
+  icon: string;
+  notes: string | null;
+  archived: boolean;
+  createdAt: string;
+  entries: { id: string; amount: number; date: string }[];
+};
+
+export type InstallmentPlan = {
+  group: string;
+  description: string;
+  accountId: string | null;
+  categoryId: string | null;
+  perMonth: number;
+  total: number;
+  count: number;
+  done: number; // parcelas em meses já passados
+  remaining: number; // valor que ainda falta
+  lastMonth: string;
+};
+
+export type ProjectionMonth = {
+  month: string;
+  income: number;
+  expense: number;
+  fixed: number; // despesas fixas
+  installments: number; // parcelas
+};
+
+export function monthsBetween(from: string, to: string) {
+  const out: string[] = [];
+  for (let m = from; m <= to; m = addMonth(m, 1)) out.push(m);
+  return out;
+}

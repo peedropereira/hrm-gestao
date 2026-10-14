@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Loader2, Search, Sparkles } from "lucide-react";
+import { Download, Loader2, Search, Sparkles } from "lucide-react";
+import { downloadText, toCSV } from "@/lib/fin-report";
 import { toast } from "sonner";
 import { Button } from "@/components/button";
 import { autoCategorize } from "@/app/actions/finance";
@@ -95,6 +96,31 @@ export function LancView({ month, txs }: { month: string; txs: FinTxDTO[] }) {
         <p className="flex items-center gap-3 text-[14px] tabular-nums">
           <span className="text-green">+{brl(income)}</span>
           <span>-{brl(expense)}</span>
+          <button
+            type="button"
+            title="Exportar para Excel"
+            aria-label="Exportar para Excel"
+            disabled={!shown.length}
+            className="grid size-10 place-items-center rounded-[10px] border border-line text-fg-2 hover:border-line-strong disabled:opacity-40 md:size-8"
+            onClick={() => {
+              const head = ["Data", "Tipo", "Descrição", "Grupo", "Categoria", "Conta", "Valor", "Pago", "Parcela", "Observações"];
+              const body = shown.map((t) => [
+                t.date.split("-").reverse().join("/"),
+                t.kind === "INCOME" ? "Receita" : t.kind === "EXPENSE" ? "Despesa" : "Transferência",
+                t.description,
+                catById(t.categoryId)?.group ?? "",
+                catById(t.categoryId)?.name ?? "",
+                accById(t.accountId)?.name ?? "",
+                t.kind === "EXPENSE" ? -t.amount : t.amount,
+                t.paid ? "sim" : "não",
+                t.installmentNo ? `${t.installmentNo}/${t.installmentTotal}` : "",
+                t.notes ?? "",
+              ]);
+              downloadText(`lancamentos-${month}.csv`, toCSV([head, ...body]));
+            }}
+          >
+            <Download className="size-4" />
+          </button>
         </p>
       </div>
 

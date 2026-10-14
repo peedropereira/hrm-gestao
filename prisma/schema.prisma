@@ -636,3 +636,33 @@ model FinTransaction {
   @@index([ownerId, date])
   @@index([accountId, invoiceMonth])
 }
+
+// Objetivos de economia (reserva, viagem, carro…): quanto falta e quanto guardar por mês.
+model FinGoal {
+  id        String    @id @default(cuid())
+  ownerId   String
+  name      String
+  target    Decimal   @db.Decimal(14, 2)
+  saved     Decimal   @default(0) @db.Decimal(14, 2)
+  deadline  DateTime? @db.Date
+  color     String    @default("#0e6e7e")
+  icon      String    @default("piggy-bank")
+  notes     String?
+  archived  Boolean   @default(false)
+  createdAt DateTime  @default(now())
+
+  entries FinGoalEntry[]
+
+  @@index([ownerId])
+}
+
+model FinGoalEntry {
+  id        String   @id @default(cuid())
+  goalId    String
+  goal      FinGoal  @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  amount    Decimal  @db.Decimal(14, 2) // positivo = guardou; negativo = retirou
+  date      DateTime @db.Date
+  createdAt DateTime @default(now())
+
+  @@index([goalId, date])
+}

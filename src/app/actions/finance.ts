@@ -598,3 +598,70 @@ export async function autoCategorize(): Promise<Result<{ done: number; left: num
     return fail(e);
   }
 }
+
+// ---------- objetivos ----------
+
+const goalInput = z.object({
+  name: z.string().trim().min(1, "Informe o nome do objetivo.").max(80),
+  target: money,
+  deadline: iso.nullish(),
+  color: z.string().regex(/^#[0-9a-f]{6}$/i).default("#0e6e7e"),
+  icon: z.string().max(30).default("piggy-bank"),
+  notes: z.string().trim().max(500).nullish(),
+});
+
+async function ownGoal(ownerId: string, goalId: string) {
+  const g = await db.finGoal.findFirst({ where: { id: goalId, ownerId } });
+  if (!g) throw new Error("Objetivo não encontrado.");
+  return g;
+}
+
+export async function saveGoal(raw: z.input<typeof goalInput>, goalId?: string): Promise<Result<{ id: string }>> {
+  try {
+    const user = await actionUser();
+    const d = goalInput.parse(raw);
+    const data = { ...d, deadline: d.deadline ? isoDate(d.deadline) : null, notes: d.notes || null };
+    if (goalId) {
+      const g = await ownGoal(user.id, goalId);
+      await db.finGoal.update({ where: { id: g.id }, data });
+      refreshAll();
+      return { ok: true, data: { id: g.id } };
+    }
+    const g = await db.finGoal.create({ data: { ...data, ownerId: user.id } });
+    refreshAll();
+    return { ok: true, data: { id: g.id } };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Guardar (valor positivo) ou retirar (negativo) dinheiro de um objetivo. */
+export async function moveGoal(goalId: string, amount: number, date: string): Promise<Result> {
+  try {
+    const user = await actionUser();
+    const v = z.number().finite().refine((x) => x !== 0, "Informe o valor.").parse(amount);
+    const day = iso.parse(date);
+    const g = await ownGoal(user.id, goalId);
+    if (Number(g.saved) + v < -0.001) throw new Error("Não dá para retirar mais do que está guardado.");
+    await db.$transaction([
+      db.finGoalEntry.create({ data: { goalId: g.id, amount: v, date: isoDate(day) } }),
+      db.finGoal.update({ where: { id: g.id }, data: { saved: { increment: v } } }),
+    ]);
+    refreshAll();
+    return { ok: true };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+export async function archiveGoal(goalId: string, archived = true): Promise<Result> {
+  try {
+    const user = await actionUser();
+    const g = await ownGoal(user.id, goalId);
+    await db.finGoal.update({ where: { id: g.id }, data: { archived } });
+    refreshAll();
+    return { ok: true };
+  } catch (e) {
+    return fail(e);
+  }
+}

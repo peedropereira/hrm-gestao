@@ -9,7 +9,11 @@ import {
   invoiceMonthOf,
   type FinAccountDTO,
   type FinCategoryDTO,
+  type FinGoalDTO,
   type FinInvoiceDTO,
+  type InstallmentPlan,
+  type ProjectionMonth,
+  type ReportTx,
   type FinRecurringDTO,
   type FinTxDTO,
 } from "@/lib/fin-types";
@@ -255,4 +259,224 @@ export async function billsSummary(ownerId: string, today: string) {
   const due = rows.filter((r) => dateOnlyToISO(r.date) === today);
   const late = rows.filter((r) => dateOnlyToISO(r.date)! < today);
   return { due: due.length, dueTotal: due.reduce((t, r) => t + num(r.amount), 0), late: late.length, first: due[0]?.description ?? null };
+}
+
+// ---------- relatórios e planejamento ----------
+
+/** Receitas e despesas de um período, enxutas para os gráficos (sem transferências). */
+export async function getReportTx(ownerId: string, from: string, toExclusive: string): Promise<ReportTx[]> {
+  const rows = await db.finTransaction.findMany({
+    where: { ownerId, deletedAt: null, kind: { in: ["INCOME", "EXPENSE"] }, ...inMonths(from, toExclusive) },
+    select: {
+      kind: true,
+      amount: true,
+      date: true,
+      invoiceMonth: true,
+      categoryId: true,
+      description: true,
+      recurringId: true,
+      installmentGroup: true,
+      cardPending: true,
+      paid: true,
+      account: { select: { type: true } },
+    },
+    orderBy: { date: "asc" },
+  });
+  return rows.map((r) => ({
+    kind: r.kind === "INCOME" ? "INCOME" : "EXPENSE",
+    amount: num(r.amount),
+    date: dateOnlyToISO(r.date)!,
+    month: monthOfTx(r),
+    categoryId: r.categoryId,
+    description: r.description,
+    recurring: !!r.recurringId,
+    installment: !!r.installmentGroup,
+    card: r.cardPending || r.account?.type === "CREDIT_CARD",
+    paid: r.paid,
+  }));
+}
+
+const stripInstallment = (s: string) => s.replace(/\s*\(?\s*\d{1,2}\s*\/\s*\d{1,2}\s*\)?\s*$/, "").trim();
+const monthsDiff = (from: string, to: string) => (Number(to.slice(0, 4)) - Number(from.slice(0, 4))) * 12 + Number(to.slice(5, 7)) - Number(from.slice(5, 7));
+
+/**
+ * Parcelas que vieram nas faturas importadas ("LOJA X (6/10)"): pela última fatura de cada cartão,
+ * sabe quantas parcelas ainda vão cair nas próximas faturas.
+ */
+async function cardInstallments(ownerId: string) {
+  const cards = await db.finAccount.findMany({ where: { ownerId, type: "CREDIT_CARD" }, select: { id: true } });
+  if (!cards.length) return [];
+  const latest = await db.finTransaction.groupBy({
+    by: ["accountId"],
+    where: { ownerId, deletedAt: null, accountId: { in: cards.map((c) => c.id) }, recurringId: null, installmentGroup: null, kind: "EXPENSE", invoiceMonth: { not: null } },
+    _max: { invoiceMonth: true },
+  });
+  const pairs = latest.filter((l) => l.accountId && l._max.invoiceMonth).map((l) => ({ accountId: l.accountId!, invoiceMonth: l._max.invoiceMonth! }));
+  if (!pairs.length) return [];
+  const rows = await db.finTransaction.findMany({
+    where: { ownerId, deletedAt: null, kind: "EXPENSE", installmentGroup: null, recurringId: null, OR: pairs },
+    select: { description: true, amount: true, accountId: true, categoryId: true, invoiceMonth: true },
+  });
+  const out: { key: string; description: string; accountId: string; categoryId: string | null; perMonth: number; n: number; total: number; invoice: string }[] = [];
+  for (const r of rows) {
+    const m = r.description.match(/\(?\s*(\d{1,2})\s*\/\s*(\d{1,2})\s*\)?\s*$/);
+    if (!m) continue;
+    const n = Number(m[1]);
+    const total = Number(m[2]);
+    if (n < 1 || total < 2 || n > total) continue;
+    const invoice = dateOnlyToISO(r.invoiceMonth)!.slice(0, 7);
+    out.push({ key: `${r.accountId}|${invoice}|${r.description}|${num(r.amount)}`, description: stripInstallment(r.description), accountId: r.accountId!, categoryId: r.categoryId, perMonth: num(r.amount), n, total, invoice });
+  }
+  return out;
+}
+
+/** Compras parceladas que ainda têm parcelas a partir deste mês. */
+export async function getInstallmentPlans(ownerId: string, month: string): Promise<InstallmentPlan[]> {
+  const active = await db.finTransaction.findMany({
+    where: { ownerId, deletedAt: null, installmentGroup: { not: null }, ...inMonths(month, "2200-01") },
+    select: { installmentGroup: true },
+    distinct: ["installmentGroup"],
+  });
+  const groups = active.map((a) => a.installmentGroup!);
+  const fromCards: InstallmentPlan[] = (await cardInstallments(ownerId))
+    .map((c) => {
+      // parcelas a partir deste mês: as que já vieram em faturas deste mês em diante + as que ainda virão
+      const ahead = Math.max(0, monthsDiff(month, c.invoice));
+      const left = Math.min(c.total, c.total - c.n + 1 + ahead);
+      return {
+        group: c.key,
+        description: c.description,
+        accountId: c.accountId,
+        categoryId: c.categoryId,
+        perMonth: c.perMonth,
+        total: Math.round(c.perMonth * c.total * 100) / 100,
+        count: c.total,
+        done: c.total - left,
+        remaining: Math.round(c.perMonth * left * 100) / 100,
+        lastMonth: addMonth(c.invoice, c.total - c.n),
+      };
+    })
+    .filter((p) => p.lastMonth >= month && p.remaining > 0);
+  if (!groups.length) return fromCards.sort((a, b) => b.remaining - a.remaining);
+  const rows = await db.finTransaction.findMany({
+    where: { ownerId, deletedAt: null, installmentGroup: { in: groups } },
+    select: { installmentGroup: true, description: true, amount: true, date: true, invoiceMonth: true, accountId: true, categoryId: true, installmentTotal: true },
+    orderBy: { installmentNo: "asc" },
+  });
+  const by = new Map<string, typeof rows>();
+  for (const r of rows) by.set(r.installmentGroup!, [...(by.get(r.installmentGroup!) ?? []), r]);
+  return [...by.entries()]
+    .map(([group, list]) => {
+      const first = list[0];
+      const months = list.map(monthOfTx).sort();
+      const remaining = list.filter((r) => monthOfTx(r) >= month).reduce((t, r) => t + num(r.amount), 0);
+      return {
+        group,
+        description: stripInstallment(first.description),
+        accountId: first.accountId,
+        categoryId: first.categoryId,
+        perMonth: num(first.amount),
+        total: Math.round(list.reduce((t, r) => t + num(r.amount), 0) * 100) / 100,
+        count: first.installmentTotal ?? list.length,
+        done: (first.installmentTotal ?? list.length) - list.filter((r) => monthOfTx(r) >= month).length,
+        remaining: Math.round(remaining * 100) / 100,
+        lastMonth: months.at(-1)!,
+      };
+    })
+    .concat(fromCards)
+    .sort((a, b) => b.remaining - a.remaining);
+}
+
+/**
+ * Previsão mês a mês: o que já está lançado (parcelas, fixos gerados, faturas)
+ * mais os fixos ativos que ainda não viraram lançamento naquele mês.
+ */
+export async function getProjection(ownerId: string, month: string, n = 6): Promise<ProjectionMonth[]> {
+  const last = addMonth(month, n - 1);
+  const [rows, recs, cardInst] = await Promise.all([
+    db.finTransaction.findMany({
+      where: { ownerId, deletedAt: null, kind: { in: ["INCOME", "EXPENSE"] }, ...inMonths(month, addMonth(last, 1)) },
+      select: { kind: true, amount: true, date: true, invoiceMonth: true, recurringId: true, installmentGroup: true, recurringMonth: true, description: true },
+    }),
+    db.finRecurring.findMany({ where: { ownerId, active: true } }),
+    cardInstallments(ownerId),
+  ]);
+  const out = new Map<string, ProjectionMonth>();
+  for (let i = 0; i < n; i++) {
+    const m = addMonth(month, i);
+    out.set(m, { month: m, income: 0, expense: 0, fixed: 0, installments: 0 });
+  }
+  const materialized = new Set<string>();
+  for (const r of rows) {
+    if (r.recurringId && r.recurringMonth) materialized.add(`${r.recurringId}|${dateOnlyToISO(r.recurringMonth)!.slice(0, 7)}`);
+    const slot = out.get(monthOfTx(r));
+    if (!slot) continue;
+    const v = num(r.amount);
+    if (r.kind === "INCOME") slot.income += v;
+    else {
+      slot.expense += v;
+      if (r.recurringId) slot.fixed += v;
+      if (r.installmentGroup || /\(\s*\d{1,2}\s*\/\s*\d{1,2}\s*\)\s*$/.test(r.description)) slot.installments += v;
+    }
+  }
+  // parcelas que ainda vão cair nas próximas faturas (depois da última fatura importada)
+  for (const c of cardInst) {
+    for (let k = 1; k <= c.total - c.n; k++) {
+      const slot = out.get(addMonth(c.invoice, k));
+      if (!slot) continue;
+      slot.expense += c.perMonth;
+      slot.installments += c.perMonth;
+    }
+  }
+  for (const r of recs) {
+    const start = dateOnlyToISO(r.startMonth)!.slice(0, 7);
+    const end = r.endMonth ? dateOnlyToISO(r.endMonth)!.slice(0, 7) : null;
+    for (const slot of out.values()) {
+      if (slot.month < start || (end && slot.month > end) || materialized.has(`${r.id}|${slot.month}`)) continue;
+      const v = num(r.amount);
+      if (r.kind === "INCOME") slot.income += v;
+      else {
+        slot.expense += v;
+        slot.fixed += v;
+      }
+    }
+  }
+  const round = (v: number) => Math.round(v * 100) / 100;
+  return [...out.values()].map((s) => ({ month: s.month, income: round(s.income), expense: round(s.expense), fixed: round(s.fixed), installments: round(s.installments) }));
+}
+
+/** O que ainda falta pagar/receber até o fim do mês (inclui atrasados), para o saldo previsto. */
+export async function getMonthRemaining(ownerId: string, month: string) {
+  const rows = await db.finTransaction.findMany({
+    where: { ownerId, deletedAt: null, paid: false, kind: { in: ["INCOME", "EXPENSE"] }, ...inMonths("2000-01", addMonth(month, 1)) },
+    select: { kind: true, amount: true },
+  });
+  let income = 0;
+  let expense = 0;
+  for (const r of rows) {
+    if (r.kind === "INCOME") income += num(r.amount);
+    else expense += num(r.amount);
+  }
+  return { income: Math.round(income * 100) / 100, expense: Math.round(expense * 100) / 100 };
+}
+
+export async function getGoals(ownerId: string): Promise<FinGoalDTO[]> {
+  const rows = await db.finGoal.findMany({
+    where: { ownerId },
+    include: { entries: { orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 24 } },
+    orderBy: [{ archived: "asc" }, { createdAt: "asc" }],
+  });
+  return rows.map((g) => ({
+    id: g.id,
+    name: g.name,
+    target: num(g.target),
+    saved: num(g.saved),
+    deadline: g.deadline ? dateOnlyToISO(g.deadline)! : null,
+    color: g.color,
+    icon: g.icon,
+    notes: g.notes,
+    archived: g.archived,
+    createdAt: g.createdAt.toISOString().slice(0, 10),
+    entries: g.entries.map((e) => ({ id: e.id, amount: num(e.amount), date: dateOnlyToISO(e.date)! })),
+  }));
 }
